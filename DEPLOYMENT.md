@@ -14,23 +14,30 @@ The repository is configured for Firebase project ID `taxiconnect-dev` in `.fire
 
 1. In Firebase Console, open **Project settings → Your apps** and register or select the V1 Web App.
 2. Copy its Web App configuration into `public/firebase-config.js`. Replace all three placeholders: `apiKey`, `messagingSenderId`, and `appId`. These browser configuration values identify the Firebase project; do not put service-account keys or staff PINs in this file.
-3. In **Authentication → Sign-in method**, enable **Anonymous** sign-in for passengers.
+3. In **Authentication → Sign-in method**, enable **Anonymous** sign-in for passengers and **Email/Password** sign-in for staff.
 4. Confirm that Realtime Database exists in the same project and region. Review `database.rules.json` before publishing it.
-5. Set the two staff PINs through Secret Manager using the commands below. Never commit PINs or a local `.env` file.
-6. Configure Firebase CLI access for the intended project and verify the selected project with `firebase use`.
+5. Create one Firebase Authentication email/password account for each driver and conductor in **Authentication → Users**.
+6. Assign each staff account its server-side role using the provisioning utility below. Never grant staff roles from browser code.
+7. Configure Firebase CLI access for the intended project and verify the selected project with `firebase use`.
 
-## Staff PIN secrets
+## Provision individual staff identities
 
-Cloud Functions reads the driver and conductor PINs only when they are bound to the staff login callable.
+The web application uses Firebase Authentication email/password accounts for drivers and conductors. The backend checks server-assigned custom claims (`isDriver` or `isConductor`); a user cannot grant themselves a role from the browser.
+
+Create the account in Firebase Console → Authentication → Users, then run the role utility from the repository:
 
 ```bash
-firebase functions:secrets:set DRIVER_PIN
-firebase functions:secrets:set CONDUCTOR_PIN
+gcloud auth application-default login
+gcloud config set project taxiconnect-dev
+cd functions
+npm ci
+npm run provision:staff -- driver@example.com driver
+npm run provision:staff -- conductor@example.com conductor
 ```
 
-The function is bound to both secrets with `runWith({ secrets: [...] })`. After changing a secret, redeploy the login callable so the new version is available.
+Replace the example email addresses with the actual staff accounts. The utility uses Firebase Admin SDK Application Default Credentials and preserves other custom claims while setting the selected TaxiConnect role. Staff must sign out and sign in again after a role change so their ID token refreshes.
 
-**Important security limitation:** the current V1 staff login is a shared-PIN workflow, not individual verified staff identities. It includes per-IP attempt throttling, but a shared PIN and a user-entered display name are not equivalent to personal authentication. Use it only for a controlled pilot with trusted staff. Before public/production use, replace it with individual staff accounts and an administrator-controlled role-provisioning process.
+Do not expose a role-provisioning callable to ordinary clients. Keep administrator credentials out of the repository.
 
 ## Billing and free-tier implications
 
