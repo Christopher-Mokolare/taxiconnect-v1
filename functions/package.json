@@ -6,7 +6,8 @@
     "node": "22"
   },
   "scripts": {
-    "check": "node --check index.js"
+    "check": "node --check index.js",
+    "provision:staff": "node scripts/provision-staff.js"
   },
   "dependencies": {
     "firebase-admin": "^13.0.2",
