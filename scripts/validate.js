@@ -16,6 +16,7 @@ const requiredPages = [
   "public/js/app-common.js",
   "functions/scripts/provision-staff.js",
   "scripts/test-database-rules.js",
+  "scripts/deploy.sh",
 ];
 const errors = [];
 
