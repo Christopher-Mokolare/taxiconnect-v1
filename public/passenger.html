@@ -149,6 +149,7 @@ firebase.auth().onAuthStateChanged(async user => {
       myWaitId = null;
     }
     syncWaitControls();
+    watchMyWaitingSignal();
   } catch (error) {
     console.error('Could not restore waiting signal:', error);
   }
@@ -225,6 +226,7 @@ async function sendSignal() {
     await db.ref().update(updates);
     document.getElementById('waitBtn').style.display = 'none';
     syncWaitControls();
+    watchMyWaitingSignal();
     alert('Waiting signal sent successfully.');
   } catch (error) {
     console.error('signalWaiting failed:', error);
@@ -253,6 +255,8 @@ async function cancelWaiting() {
     if (index.val() === myWaitId) updates['passengerWaiting/' + user.uid] = null;
     await db.ref().update(updates);
     myWaitId = null;
+    if (myWaitRef) myWaitRef.off('value');
+    myWaitRef = null;
     syncWaitControls();
   } catch (error) {
     console.error('cancelWaiting failed:', error);
@@ -263,6 +267,25 @@ async function cancelWaiting() {
 function syncWaitControls() {
   document.getElementById('waitBtn').style.display = myWaitId ? 'none' : 'block';
   document.getElementById('cancelBtn').style.display = myWaitId ? 'block' : 'none';
+}
+
+function watchMyWaitingSignal() {
+  if (myWaitRef) myWaitRef.off('value');
+  myWaitRef = null;
+  const user = firebase.auth().currentUser;
+  if (!user || !myWaitId) return;
+
+  const watchedId = myWaitId;
+  myWaitRef = db.ref('waitingPassengers/' + watchedId);
+  myWaitRef.on('value', snapshot => {
+    const record = snapshot.val();
+    if (!record || record.passengerId !== user.uid) {
+      if (myWaitId === watchedId) myWaitId = null;
+      syncWaitControls();
+      if (myWaitRef) myWaitRef.off('value');
+      myWaitRef = null;
+    }
+  });
 }
 
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
