@@ -17,6 +17,7 @@
         crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js" crossorigin="anonymous"></script>
 <script src="/firebase-config.js"></script>
+<script src="/js/app-common.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,sans-serif;background:#f0f2f5;min-height:100vh}
@@ -125,7 +126,7 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 const functions = firebase.functions();
 let selectedRoute = 'SUN_CITY', capacity = 14, onboard = 0, liveOnboard = 0;
-let myTaxiId = null, myCapacity = 14;
+let myTaxiId = null, myCapacity = 14, summonsRef = null;
 
 // ── Auth ──────────────────────────────────────────────────────────
 let driverName = '';
@@ -216,13 +217,15 @@ firebase.auth().onAuthStateChanged(async user => {
 
 // ── Summon listener ───────────────────────────────────────────────
 function listenForSummons() {
-  db.ref(`summons/${selectedRoute}`).on('value', snap => {
+  if (summonsRef) summonsRef.off('value');
+  summonsRef = db.ref(`summons/${selectedRoute}`);
+  summonsRef.on('value', snap => {
     const s = snap.val();
     if (!s || Date.now() - s.timestamp > 5 * 60 * 1000) return;
     const banner = document.getElementById('summonBanner');
     banner.textContent = `🚨 Conductor needs drivers → ${ROUTES[selectedRoute].label}! ${s.count} passengers waiting.`;
     banner.style.display = 'block';
-    if (Notification.permission === 'granted') {
+    if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('🚨 TaxiConnect', { body: `${s.count} passengers waiting for ${ROUTES[selectedRoute].label}. Go live now!` });
     }
     setTimeout(() => { banner.style.display = 'none'; }, 30000);
@@ -268,10 +271,12 @@ function selectRoute(r) {
   selectedRoute = r;
   document.getElementById('drv-sun').classList.toggle('sel', r === 'SUN_CITY');
   document.getElementById('drv-rust').classList.toggle('sel', r === 'RUSTENBURG');
+  if (firebase.auth().currentUser && sessionStorage.getItem('tc_role') === 'driver') listenForSummons();
 }
 
 // ── Go Live / Offline ─────────────────────────────────────────────
 async function goLive() {
+  if (myTaxiId) return;
   try {
     const fn = functions.httpsCallable('goLive');
 
@@ -327,8 +332,9 @@ async function updatePassengers() {
 }
 
 async function goOffline() {
+  if (!myTaxiId) return;
   const fn = functions.httpsCallable('goOffline');
-    await fn({ taxiId: myTaxiId });
+  await fn({ taxiId: myTaxiId });
   myTaxiId = null; onboard = 0;
   document.getElementById('onboardVal').textContent = '0';
   updatePreview();
