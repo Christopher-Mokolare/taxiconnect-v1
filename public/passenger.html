@@ -15,7 +15,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"
         integrity="sha384-1/m+A1jVWbD3yiK3/vtFvm1+LjK1WLpSoDY+Kaxppwn/yP9BVSgdHTNQVOjrzUO5"
         crossorigin="anonymous"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js" crossorigin="anonymous"></script>
 <script src="/firebase-config.js"></script>
 <script src="/js/app-common.js"></script>
 <style>
@@ -109,7 +108,6 @@ let selectedRoute = 'SUN_CITY', groupSize = 1;
 let myWaitId = null, allTaxis = {};
 
 // ── Auth ──────────────────────────────────────────────────────────
-const functions = firebase.functions();
 let taxisSubscribed = false;
 
 firebase.auth().onAuthStateChanged(async user => {
@@ -135,9 +133,20 @@ firebase.auth().onAuthStateChanged(async user => {
   }
 
   try {
-    const lookup = functions.httpsCallable('getMyWaitingSignal');
-    const result = await lookup({});
-    myWaitId = result.data.waitId || null;
+    const index = await db.ref('passengerWaiting/' + user.uid).once('value');
+    const waitId = index.val();
+    if (waitId) {
+      const waiting = await db.ref('waitingPassengers/' + waitId).once('value');
+      const record = waiting.val();
+      if (record && record.passengerId === user.uid) {
+        myWaitId = waitId;
+      } else {
+        myWaitId = null;
+        await db.ref('passengerWaiting/' + user.uid).remove();
+      }
+    } else {
+      myWaitId = null;
+    }
     syncWaitControls();
   } catch (error) {
     console.error('Could not restore waiting signal:', error);
@@ -201,14 +210,18 @@ async function sendSignal() {
   }
 
   try {
-    const fn = functions.httpsCallable('signalWaiting');
-
-    const result = await fn({
+    const waitRef = db.ref('waitingPassengers').push();
+    myWaitId = waitRef.key;
+    const updates = {};
+    updates['waitingPassengers/' + myWaitId] = {
       route: selectedRoute,
-      groupSize
-    });
-
-    myWaitId = result.data.waitId;
+      groupSize,
+      passengerId: user.uid,
+      timestamp: Date.now(),
+      status: 'waiting'
+    };
+    updates['passengerWaiting/' + user.uid] = myWaitId;
+    await db.ref().update(updates);
     document.getElementById('waitBtn').style.display = 'none';
     syncWaitControls();
     alert('Waiting signal sent successfully.');
@@ -222,8 +235,22 @@ async function cancelWaiting() {
   if (!myWaitId) return;
 
   try {
-    const fn = functions.httpsCallable('cancelWaiting');
-    await fn({ waitId: myWaitId });
+    const user = firebase.auth().currentUser;
+    if (!user) throw new Error('Sign in before cancelling your signal.');
+    const ref = db.ref('waitingPassengers/' + myWaitId);
+    const snapshot = await ref.once('value');
+    const record = snapshot.val();
+    if (!record) {
+      myWaitId = null;
+      syncWaitControls();
+      return;
+    }
+    if (record.passengerId !== user.uid) throw new Error('You can only cancel your own waiting signal.');
+    const updates = {};
+    updates['waitingPassengers/' + myWaitId] = null;
+    const index = await db.ref('passengerWaiting/' + user.uid).once('value');
+    if (index.val() === myWaitId) updates['passengerWaiting/' + user.uid] = null;
+    await db.ref().update(updates);
     myWaitId = null;
     syncWaitControls();
   } catch (error) {
