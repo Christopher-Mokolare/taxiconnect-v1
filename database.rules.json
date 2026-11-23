@@ -35,6 +35,9 @@
         },
         "statusUpdatedBy": {
           ".validate": "newData.isString()"
+        },
+        "$other": {
+          ".validate": false
         }
       }
     },
@@ -63,6 +66,9 @@
         },
         "status": {
           ".validate": "newData.val() === 'waiting'"
+        },
+        "$other": {
+          ".validate": false
         }
       }
     },
