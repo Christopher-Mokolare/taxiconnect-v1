@@ -1,0 +1,33 @@
+name: Validate TaxiConnect V1
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, feat/v1-deployable-recovery]
+permissions:
+  contents: read
+jobs:
+  functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Functions dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: functions
+      - name: Check Functions JavaScript syntax
+        run: npm run check
+        working-directory: functions
+      - name: Validate Firebase JSON
+        run: node -e "for (const f of ['firebase.json','.firebaserc','database.rules.json']) JSON.parse(require('fs').readFileSync(f,'utf8')); console.log('Firebase JSON valid')"
+      - name: Verify web entrypoints and SDK dependencies
+        run: |
+          test -s public/index.html
+          test -s public/conductor.html
+          test -s public/driver.html
+          test -s public/passenger.html
+          grep -q 'firebase-functions-compat.js' public/conductor.html
+          grep -q 'firebase-functions-compat.js' public/driver.html
+          grep -q 'firebase-functions-compat.js' public/passenger.html
