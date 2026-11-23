@@ -12,8 +12,29 @@
       "$taxiId": {
         ".write": "auth != null && (auth.token.isConductor === true || (auth.token.isDriver === true && ((!data.exists() && newData.child('driverId').val() === auth.uid) || (data.child('driverId').val() === auth.uid && (!newData.exists() || newData.child('driverId').val() === auth.uid)))))",
         ".validate": "!newData.exists() || (newData.hasChildren(['driverId','driverName','route','capacity','passengersOnboard','status','lastUpdated']) && newData.child('driverId').isString() && newData.child('driverName').isString() && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('capacity').isNumber() && newData.child('capacity').val() >= 1 && newData.child('capacity').val() <= 22 && newData.child('passengersOnboard').isNumber() && newData.child('passengersOnboard').val() >= 0 && newData.child('passengersOnboard').val() <= newData.child('capacity').val() && newData.child('status').val().matches(/^(loading|full|departed|breakdown)$/) && newData.child('lastUpdated').isNumber() && newData.child('lastUpdated').val() <= now + 5000 && newData.child('lastUpdated').val() >= now - 60000 && (!newData.child('statusUpdatedBy').exists() || newData.child('statusUpdatedBy').isString()) && (auth.token.isConductor === true || newData.child('status').val().matches(/^(loading|full)$/)))",
-        "$other": {
-          ".validate": false
+        "driverId": {
+          ".validate": "newData.isString()"
+        },
+        "driverName": {
+          ".validate": "newData.isString() && newData.val().length <= 80"
+        },
+        "route": {
+          ".validate": "newData.val() === 'SUN_CITY' || newData.val() === 'RUSTENBURG'"
+        },
+        "capacity": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 22"
+        },
+        "passengersOnboard": {
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "status": {
+          ".validate": "newData.val().matches(/^(loading|full|departed|breakdown)$/) && (auth.token.isConductor === true || newData.val().matches(/^(loading|full)$/))"
+        },
+        "lastUpdated": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 5000 && newData.val() >= now - 60000"
+        },
+        "statusUpdatedBy": {
+          ".validate": "newData.isString()"
         }
       }
     },
@@ -28,8 +49,20 @@
         ".read": "auth != null && (auth.token.isConductor === true || data.child('passengerId').val() === auth.uid)",
         ".write": "auth != null && (auth.token.isConductor === true || (auth.token.firebase.sign_in_provider === 'anonymous' && ((!data.exists() && newData.child('passengerId').val() === auth.uid) || (data.child('passengerId').val() === auth.uid && !newData.exists()))))",
         ".validate": "!newData.exists() || (newData.hasChildren(['route','groupSize','timestamp','passengerId','status']) && newData.child('passengerId').isString() && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('groupSize').isNumber() && newData.child('groupSize').val() >= 1 && newData.child('groupSize').val() <= 10 && newData.child('timestamp').isNumber() && newData.child('timestamp').val() <= now + 5000 && newData.child('timestamp').val() >= now - 60000 && newData.child('status').val() === 'waiting')",
-        "$other": {
-          ".validate": false
+        "route": {
+          ".validate": "newData.val() === 'SUN_CITY' || newData.val() === 'RUSTENBURG'"
+        },
+        "groupSize": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 10"
+        },
+        "timestamp": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 5000 && newData.val() >= now - 60000"
+        },
+        "passengerId": {
+          ".validate": "newData.isString()"
+        },
+        "status": {
+          ".validate": "newData.val() === 'waiting'"
         }
       }
     },
@@ -44,7 +77,19 @@
       ".read": "auth != null && (auth.token.isDriver === true || auth.token.isConductor === true)",
       "$route": {
         ".write": "auth != null && auth.token.isConductor === true",
-        ".validate": "!newData.exists() || (( $route === 'SUN_CITY' || $route === 'RUSTENBURG') && newData.hasChildren(['count','timestamp','conductorId']) && newData.child('count').isNumber() && newData.child('count').val() >= 1 && newData.child('count').val() <= 200 && newData.child('timestamp').isNumber() && newData.child('timestamp').val() <= now + 5000 && newData.child('timestamp').val() >= now - 60000 && newData.child('conductorId').val() === auth.uid)"
+        ".validate": "!newData.exists() || (( $route === 'SUN_CITY' || $route === 'RUSTENBURG') && newData.hasChildren(['count','timestamp','conductorId']) && newData.child('count').isNumber() && newData.child('count').val() >= 1 && newData.child('count').val() <= 200 && newData.child('timestamp').isNumber() && newData.child('timestamp').val() <= now + 5000 && newData.child('timestamp').val() >= now - 60000 && newData.child('conductorId').val() === auth.uid)",
+        "count": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 200"
+        },
+        "timestamp": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 5000 && newData.val() >= now - 60000"
+        },
+        "conductorId": {
+          ".validate": "newData.isString() && newData.val() === auth.uid"
+        },
+        "$other": {
+          ".validate": false
+        }
       }
     },
     "history": {
