@@ -173,7 +173,7 @@ function showErr(m) { const e = document.getElementById('authError'); if(e){ e.t
 // ── Taxis ─────────────────────────────────────────────────────────
 function renderTaxis() {
   const el = document.getElementById('taxiList');
-  const taxis = Object.entries(allTaxis).filter(([,t]) => t.route === selectedRoute && t.status !== 'breakdown');
+  const taxis = Object.entries(allTaxis).filter(([,t]) => t.route === selectedRoute && t.status !== 'breakdown' && t.status !== 'offline');
   if (!taxis.length) {
     el.innerHTML = `<div class="alert a-danger">🔴 No taxis to <strong>${routeLabel(selectedRoute)}</strong> right now.<br><small>Use the button below to alert the conductor.</small></div>`;
     return;
