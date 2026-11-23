@@ -123,6 +123,7 @@
 </div>
 
 <script>
+if (!window.TAXICONNECT_CONFIGURED) throw new Error('Firebase Web App configuration is incomplete. See the setup warning above.');
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 let selectedRoute = 'SUN_CITY', capacity = 14, onboard = 0, liveOnboard = 0;
