@@ -20,6 +20,19 @@ The repository is configured for Firebase project ID `taxiconnect-dev` in `.fire
 6. Assign each staff account its server-side role using the provisioning utility below.
 7. Configure Firebase CLI access for the intended project and verify the selected project with `firebase use`.
 
+## Run the test-data seeder from GitHub Actions
+
+The repository includes a manual workflow at `.github/workflows/seed-test-data.yml`. It is restricted to `taxiconnect-dev`, requires an explicit `yes` confirmation, and never prints the test password or service-account JSON.
+
+Before running it, configure these two **Actions secrets** in GitHub repository Settings → Secrets and variables → Actions:
+
+- `FIREBASE_SERVICE_ACCOUNT_TAXICONNECT_DEV`: the JSON key for a dedicated service account whose `project_id` is exactly `taxiconnect-dev`. Grant only the Firebase Authentication Admin and Realtime Database permissions needed to create test users, assign custom claims and write sample taxi records. Do not commit this JSON or paste it into chat.
+- `TAXICONNECT_TEST_PASSWORD`: a temporary password of at least 12 characters for the three fake staff accounts.
+
+Then open **Actions → Seed TaxiConnect development test data → Run workflow**, choose branch `feat/v1-product-completion`, set `confirm_seed` to `yes`, and run it. Review the job logs and summary. The workflow only creates or updates the three `@taxiconnect.test` users and two sample taxi records in the development project.
+
+**GitHub limitation:** GitHub only allows manually dispatching a workflow once its workflow file exists on the repository's default branch. This workflow has been added to the feature branch and its PR; it will become selectable for manual dispatch after the workflow file is merged into the default branch. It does not run automatically and this change does not merge the PR.
+
 ## Create the fake test accounts and sample taxis
 
 For development testing only, the repository includes a guarded seeder. It creates `driver1@taxiconnect.test`, `driver2@taxiconnect.test` and `conductor@taxiconnect.test`, assigns their custom claims, and creates two clearly named sample taxis. It refuses to run unless the development project and explicit test-seed confirmation are supplied.
