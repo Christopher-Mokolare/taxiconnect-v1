@@ -27,8 +27,8 @@ TaxiConnect V1 is a Firebase-based taxi coordination web application for the Sun
 ## Getting started
 
 1. Configure the Firebase Web App values in `public/firebase-config.js`.
-2. Enable Firebase Anonymous Authentication for passenger sessions.
-3. Configure `DRIVER_PIN` and `CONDUCTOR_PIN` as Cloud Functions secrets.
+2. Enable Firebase Anonymous and Email/Password Authentication for passenger sessions.
+3. Create staff email/password accounts and assign driver/conductor custom claims using the provisioning utility in `functions/scripts/`.
 4. Review `database.rules.json`.
 5. Follow [DEPLOYMENT.md](DEPLOYMENT.md).
 
