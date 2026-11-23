@@ -5,7 +5,7 @@ TaxiConnect V1 is a responsive taxi-coordination web application for the Sun Cit
 ## Application roles
 
 - **Passenger:** view live taxis by route, signal a waiting group, see when a conductor assigns a taxi, restore an active signal after refresh, and cancel their own signal.
-- **Driver:** sign in with an individual staff account, publish taxi capacity and passenger count, update occupancy, receive route summons, restore an active taxi after refresh, and go offline.
+- **Driver:** sign in with an individual staff account, publish taxi capacity and passenger count, update occupancy, receive route summons, restore an active taxi after refresh, and go offline. Going offline marks the taxi unavailable without deleting its record; a conductor can return any affected assigned group to the queue.
 - **Conductor:** view live taxi and passenger demand, summon drivers, assign available taxis to waiting groups with seat-capacity checks, mark taxis departed or broken down, remove taxis, clear waiting signals and clean stale records.
 
 ## Firebase project setup
@@ -44,9 +44,9 @@ Do not expose a role-provisioning callable to ordinary clients. Keep administrat
 The active application does not call Cloud Functions. Passenger signals, driver taxi records, conductor status changes and route summons are written directly to Realtime Database. `database.rules.json` is the server-side authorization boundary:
 
 - Passenger sessions use Firebase Anonymous Authentication and can create/delete only their own waiting signal.
-- Drivers need the `isDriver` custom claim and can create, update or remove only their own taxi record.
+- Drivers need the `isDriver` custom claim and can create and update only their own taxi record. They cannot delete taxi records; going offline marks the taxi unavailable so assigned passenger requests remain recoverable.
 - Conductors can assign a waiting group only to an active taxi on the same route with enough unreserved seats. The passenger's own live waiting record reflects the assignment.
-- Conductors need the `isConductor` custom claim and can manage taxis, waiting signals, history and route summons.
+- Conductors need the `isConductor` custom claim and can manage taxis, waiting signals, history and route summons. If a taxi is offline or missing, the conductor can return its assigned groups to the waiting queue.
 - Root database reads and writes are denied by default.
 
 The `functions/index.js` file is retained as a historical callable-backend reference and is not deployed. `firebase.json` intentionally contains only `database` and `hosting` targets.
