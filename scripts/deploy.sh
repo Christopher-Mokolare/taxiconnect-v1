@@ -19,7 +19,7 @@ if grep -q "REPLACE_WITH" public/firebase-config.js; then
   exit 1
 fi
 
-CONFIG_PROJECT="$(node -e "const c=require('./public/firebase-config.js'); console.log(c.projectId || '')" 2>/dev/null || true)"
+CONFIG_PROJECT="$(sed -n 's/^[[:space:]]*projectId: "\([^"]*\)".*/\1/p' public/firebase-config.js | head -n 1)"
 if [ -n "$CONFIG_PROJECT" ] && [ "$CONFIG_PROJECT" != "$PROJECT_ID" ]; then
   echo "Firebase config project mismatch: expected $PROJECT_ID, got $CONFIG_PROJECT"
   exit 1
@@ -27,6 +27,7 @@ fi
 
 node scripts/validate.js
 node --test tests/*.test.js
+firebase emulators:exec --project "$PROJECT_ID" --only database "node scripts/test-database-rules.js"
 
 echo "Deploying only Firebase Hosting and Realtime Database rules to $PROJECT_ID."
 firebase deploy --project "$PROJECT_ID" --only database,hosting
