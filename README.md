@@ -1,23 +1,35 @@
 # TaxiConnect V1
 
-**Active recovery/development branch:** `feat/v1-deployable-recovery`
+TaxiConnect V1 is a Firebase-based taxi coordination web application for the Sun City (Sun Village) and Rustenburg (Town) routes. This V1 repository is kept separate from TaxiConnect V2.
 
-TaxiConnect V1 is being restored as a Firebase-based taxi coordination application. Its architecture remains Firebase Hosting, Firebase Authentication, Cloud Functions, and Realtime Database. V1 is kept separate from TaxiConnect V2.
+## Web application
+
+- Passenger web app: `/passenger.html`
+- Driver web app: `/driver.html`
+- Conductor dashboard: `/conductor.html`
+- Public role selector: `/`
 
 ## Project structure
 
-- `public/` — web landing page, conductor dashboard, driver app, passenger app, Firebase client config.
-- `functions/` — Firebase Cloud Functions.
+- `public/` — responsive role-based web application and Firebase client configuration.
+- `public/js/app-common.js` — shared route labels, time formatting and safe text rendering.
+- `functions/` — Firebase callable and scheduled Cloud Functions.
 - `database.rules.json` — Realtime Database security rules.
-- `archive/flutter-app/` — incomplete historical Flutter source, retained for recovery only.
-- `backup_*/` — historical snapshots retained for comparison and audit.
+- `scripts/validate.js` — repository, configuration and browser-script validation.
+- `archive/flutter-app/` and `backup_*/` — historical source retained for reference, not part of the active web deployment.
 
-## V1 data model boundary
+## Core workflows
 
-The archived Flutter code uses `village`, `destination`, `destinationCategory`, and `seatsAvailable`. The restored web/Functions code uses `route`, `capacity`, and `passengersOnboard`. These schemas are not interchangeable. Do not connect the archived Flutter client to the web database contract without a reviewed migration.
+- Passengers see live taxi availability, send a waiting signal and cancel their own signal.
+- Drivers sign in, go live with capacity and onboard counts, update occupancy, respond to conductor summons and go offline.
+- Conductors monitor live supply and demand, summon drivers, manage taxi status and remove stale waiting records.
 
 ## Getting started
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for Firebase project setup, configuration, validation, and manual deployment prerequisites.
+1. Configure the Firebase Web App values in `public/firebase-config.js`.
+2. Enable Firebase Anonymous Authentication for passenger sessions.
+3. Configure `DRIVER_PIN` and `CONDUCTOR_PIN` as Cloud Functions secrets.
+4. Review `database.rules.json`.
+5. Follow [DEPLOYMENT.md](DEPLOYMENT.md).
 
-**Deployment status:** not yet release-ready. The Firebase web configuration is a placeholder, secrets must be configured, database rules require security review, and the Flutter app is incomplete.
+**Current release status:** code and CI validation are in progress. Live Firebase configuration and non-production end-to-end verification are still required. Cloud Functions deployment requires Firebase Blaze billing; see [DEPLOYMENT.md](DEPLOYMENT.md).
