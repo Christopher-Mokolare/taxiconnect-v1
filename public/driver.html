@@ -328,6 +328,7 @@ async function goLive() {
 
     const existing = await db.ref('taxis').orderByChild('driverId').equalTo(user.uid).once('value');
     const existingEntry = Object.entries(existing.val() || {})[0];
+    const updates = {};
     const taxiRef = existingEntry ? db.ref('taxis/' + existingEntry[0]) : db.ref('taxis').push();
     myTaxiId = taxiRef.key;
     myCapacity = capacity;
