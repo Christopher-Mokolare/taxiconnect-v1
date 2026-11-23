@@ -123,6 +123,7 @@
 <script>
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
+const functions = firebase.functions();
 let selectedRoute = 'SUN_CITY', capacity = 14, onboard = 0, liveOnboard = 0;
 let myTaxiId = null, myCapacity = 14;
 
@@ -172,10 +173,15 @@ async function pinLogin() {
   }
 }
 
-function signOut() {
-  if (myTaxiId) goOffline();
+async function signOut() {
+  try {
+    if (myTaxiId) await goOffline();
+  } catch (error) {
+    console.error('Could not take taxi offline during sign-out:', error);
+  }
   sessionStorage.removeItem('tc_role');
   sessionStorage.removeItem('tc_name');
+  await firebase.auth().signOut();
   document.getElementById('signOutBtn').style.display = 'none';
   show('authScreen');
 }
