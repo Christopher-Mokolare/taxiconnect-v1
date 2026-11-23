@@ -188,7 +188,7 @@ async function resetPassword() {
     alert('Password reset instructions have been sent if this account exists.');
   } catch (error) {
     console.error('Password reset request failed:', error);
-    showErr(error?.message || 'Could not send password reset email.');
+    alert('If the account exists, password reset instructions will be sent.');
   }
 }
 
