@@ -307,7 +307,7 @@ async function setStatus(id, status) {
       updates['history/' + id] = {
         ...taxi,
         status: 'departed',
-        departedAt: Date.now(),
+        departedAt: firebase.database.ServerValue.TIMESTAMP,
         statusUpdatedBy: firebase.auth().currentUser.uid
       };
       updates['taxis/' + id] = null;
@@ -327,7 +327,7 @@ async function setStatus(id, status) {
 
     await ref.update({
       status,
-      lastUpdated: Date.now(),
+      lastUpdated: firebase.database.ServerValue.TIMESTAMP,
       statusUpdatedBy: firebase.auth().currentUser.uid
     });
   } catch (error) {
@@ -415,7 +415,7 @@ async function notifyRoute(route) {
   try {
     await db.ref('summons/' + route).set({
       count,
-      timestamp: Date.now(),
+      timestamp: firebase.database.ServerValue.TIMESTAMP,
       conductorId: firebase.auth().currentUser.uid
     });
     alert('Drivers summoned for ' + routeLabel(route) + ' — ' + count + ' passenger(s).');
