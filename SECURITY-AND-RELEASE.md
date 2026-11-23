@@ -18,9 +18,10 @@
 
 ## Required before production release
 
-1. Replace placeholder Firebase Web App values in `public/firebase-config.js` with the configuration from the intended V1 Firebase project.
-2. Enable Anonymous and Email/Password Authentication.
-3. Create individual staff accounts and assign their custom claims using the Admin SDK provisioning utility.
+1. Reconfirm that `public/firebase-config.js` points to the intended development Firebase project; the TaxiConnect-Dev Web App configuration is already committed.
+2. Reconfirm Anonymous and Email/Password Authentication are enabled; both were enabled during the current development setup.
+3. Create only fake test staff accounts and sample taxis using the guarded `npm run seed:test` utility.
+4. Assign any separately created staff accounts their custom claims using the Admin SDK provisioning utility.
 4. Review and test Realtime Database rules using the Firebase Emulator Suite.
 5. Confirm the intended Firebase project, database instance and region before deployment.
 6. Confirm the project remains on the intended Firebase Spark plan and review the current Hosting, Authentication and Realtime Database quotas.
