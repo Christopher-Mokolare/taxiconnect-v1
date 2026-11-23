@@ -300,8 +300,10 @@ function renderWaiting() {
       return taxi.route === w.route && taxi.status !== 'breakdown' &&
         freeSeats >= Number(w.groupSize || 1);
     });
+    const assignedTaxi = w.assignedTaxiId ? allTaxis[w.assignedTaxiId] : null;
     const assignment = w.status === 'assigned'
-      ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Taxi assigned</div>'
+      ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Assigned to ' +
+        escapeHtml(assignedTaxi?.driverName || 'taxi') + '</div>'
       : matchingTaxis.length
         ? '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">' +
           '<select id="assign-' + escapeHtml(id) + '" aria-label="Choose taxi for passenger" style="flex:1;min-width:0;padding:8px;border:1px solid #ddd;border-radius:7px">' +
@@ -364,11 +366,20 @@ async function setStatus(id, status) {
       return;
     }
 
-    await ref.update({
-      status,
-      lastUpdated: firebase.database.ServerValue.TIMESTAMP,
-      statusUpdatedBy: firebase.auth().currentUser.uid
-    });
+    const updates = {};
+    updates['taxis/' + id + '/status'] = status;
+    updates['taxis/' + id + '/lastUpdated'] = firebase.database.ServerValue.TIMESTAMP;
+    updates['taxis/' + id + '/statusUpdatedBy'] = firebase.auth().currentUser.uid;
+    if (status === 'breakdown') {
+      for (const [waitId, passenger] of Object.entries(allWaiting)) {
+        if (passenger?.assignedTaxiId === id) {
+          updates['waitingPassengers/' + waitId + '/status'] = 'waiting';
+          updates['waitingPassengers/' + waitId + '/assignedTaxiId'] = null;
+          updates['waitingPassengers/' + waitId + '/assignedAt'] = null;
+        }
+      }
+    }
+    await db.ref().update(updates);
   } catch (error) {
     console.error('setStatus failed:', error);
     alert(error?.message || 'Could not update taxi status.');
@@ -381,7 +392,16 @@ async function removeTaxi(id) {
     const ref = db.ref('taxis/' + id);
     const snapshot = await ref.once('value');
     if (!snapshot.exists()) return;
-    await ref.remove();
+    const updates = {};
+    updates['taxis/' + id] = null;
+    for (const [waitId, passenger] of Object.entries(allWaiting)) {
+      if (passenger?.assignedTaxiId === id) {
+        updates['waitingPassengers/' + waitId + '/status'] = 'waiting';
+        updates['waitingPassengers/' + waitId + '/assignedTaxiId'] = null;
+        updates['waitingPassengers/' + waitId + '/assignedAt'] = null;
+      }
+    }
+    await db.ref().update(updates);
   } catch (error) {
     console.error('removeTaxi failed:', error);
     alert(error?.message || 'Could not remove taxi.');
