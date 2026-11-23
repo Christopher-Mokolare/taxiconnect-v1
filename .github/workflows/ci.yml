@@ -43,3 +43,6 @@ jobs:
 
       - name: Validate Firebase configuration and web scripts
         run: node scripts/validate.js
+
+      - name: Run application smoke tests
+        run: node --test tests/*.test.js
