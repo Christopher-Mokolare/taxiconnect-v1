@@ -365,31 +365,7 @@ exports.summonDrivers = functions.https.onCall(
   }
 );
 
-exports.clearAllData = functions.https.onCall(
-  async (data, context) => {
-    _requireConductor(context);
-
-    if (data?.confirmation !== "CONFIRM_DELETE_123") {
-      throw new functions.https.HttpsError(
-        "failed-precondition",
-        "Confirmation required."
-      );
-    }
-
-    await db.ref().update({
-      taxis: null,
-      waitingPassengers: null,
-      summons: null,
-      summonRequests: null,
-      demandHeatmap: null,
-      history: null,
-    });
-
-    return {
-      success: true,
-    };
-  }
-);
+// Destructive whole-database deletion is intentionally not exposed as a callable.
 
 /* =========================================================
    TAXI STATUS TRIGGER
