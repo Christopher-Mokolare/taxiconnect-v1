@@ -1,4 +1,5 @@
 const functions = require("firebase-functions");
+const crypto = require("crypto");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
@@ -16,7 +17,7 @@ const ROUTES = {
    AUTH
    ========================================================= */
 
-exports.loginWithPin = functions.https.onCall(async (data, context) => {
+exports.loginWithPin = functions.runWith({ secrets: ["DRIVER_PIN", "CONDUCTOR_PIN"] }).https.onCall(async (data, context) => {
   const pin = String(data?.pin || "").trim();
   const role = String(data?.role || "").trim().toLowerCase();
   const name = String(data?.name || "").trim();
@@ -35,19 +36,37 @@ exports.loginWithPin = functions.https.onCall(async (data, context) => {
     );
   }
 
+  await _assertLoginNotRateLimited(context, role);
+
   const expectedPin =
     role === "driver"
       ? process.env.DRIVER_PIN
       : process.env.CONDUCTOR_PIN;
 
-  if (!expectedPin || pin !== expectedPin) {
+  if (!expectedPin) {
+    throw new functions.https.HttpsError(
+      "failed-precondition",
+      "Staff sign-in has not been configured by the administrator."
+    );
+  }
+
+  if (pin !== expectedPin) {
+    await _recordLoginFailure(context, role);
     throw new functions.https.HttpsError(
       "permission-denied",
       "Invalid PIN."
     );
   }
 
-  const uid = `${role}_${_slug(name)}`;
+  await _clearLoginFailures(context, role);
+  const slug = _slug(name);
+  if (!slug) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Enter a name containing letters or numbers."
+    );
+  }
+  const uid = `${role}_${slug}`;
 
   let user;
 
@@ -377,6 +396,27 @@ exports.summonDrivers = functions.https.onCall(
    SECURE OPERATIONAL CALLABLES
    ========================================================= */
 
+exports.getMyWaitingSignal = functions.https.onCall(
+  async (data, context) => {
+    const uid = _requireAuth(context);
+    const snap = await db.ref("waitingPassengers")
+      .orderByChild("passengerId")
+      .equalTo(uid)
+      .once("value");
+    const records = snap.val() || {};
+    const latest = Object.entries(records)
+      .sort((a, b) => Number(b[1]?.timestamp || 0) - Number(a[1]?.timestamp || 0))[0];
+
+    if (!latest) return { waitId: null };
+    return {
+      waitId: latest[0],
+      route: latest[1]?.route || null,
+      groupSize: latest[1]?.groupSize || 1,
+      timestamp: latest[1]?.timestamp || null
+    };
+  }
+);
+
 exports.cancelWaiting = functions.https.onCall(
   async (data, context) => {
     const uid = _requireAuth(context);
@@ -565,50 +605,7 @@ exports.cleanupWaitingPassengers = functions.https.onCall(
   }
 );
 
-exports.approvePhone = functions.https.onCall(
-  async (data, context) => {
-    _requireConductor(context);
-
-    const phone =
-      typeof data?.phone === "string"
-        ? data.phone.trim()
-        : "";
-
-    const role =
-      typeof data?.role === "string"
-        ? data.role.trim()
-        : "";
-
-    if (!phone) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "Phone number is required."
-      );
-    }
-
-    if (!/^(driver|conductor)$/.test(role)) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "Role must be driver or conductor."
-      );
-    }
-
-    const key = phone.replace(/[^0-9]/g, "");
-
-    if (!key) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "Invalid phone number."
-      );
-    }
-
-    await db.ref(`approvedPhones/${key}`).set(role);
-
-    return {
-      success: true,
-    };
-  }
-);
+// Phone-number pre-approval was removed because the PIN login did not verify phone ownership.
 
 exports.onTaxiStatusChange = functions.database
   .ref("/taxis/{taxiId}/status")
@@ -734,6 +731,41 @@ exports.cleanupStaleTaxis = functions.pubsub
 /* =========================================================
    HELPERS
    ========================================================= */
+
+function _loginRateLimitRef(context, role) {
+  const ip = context.rawRequest?.ip || "unknown";
+  const key = crypto.createHash("sha256").update(`${role}:${ip}`).digest("hex");
+  return db.ref(`authRateLimits/${key}`);
+}
+
+async function _assertLoginNotRateLimited(context, role) {
+  const snap = await _loginRateLimitRef(context, role).once("value");
+  const blockedUntil = Number(snap.child("blockedUntil").val() || 0);
+  if (blockedUntil > Date.now()) {
+    throw new functions.https.HttpsError(
+      "resource-exhausted",
+      "Too many sign-in attempts. Try again in 15 minutes."
+    );
+  }
+}
+
+async function _recordLoginFailure(context, role) {
+  const now = Date.now();
+  const ref = _loginRateLimitRef(context, role);
+  await ref.transaction(current => {
+    const windowExpired = !current || now - Number(current.windowStart || 0) > 15 * 60 * 1000;
+    const attempts = windowExpired ? 1 : Number(current.attempts || 0) + 1;
+    return {
+      windowStart: windowExpired ? now : Number(current.windowStart),
+      attempts,
+      blockedUntil: attempts >= 5 ? now + 15 * 60 * 1000 : 0
+    };
+  });
+}
+
+async function _clearLoginFailures(context, role) {
+  await _loginRateLimitRef(context, role).remove();
+}
 
 function _requireAuth(context) {
   if (!context.auth) {
