@@ -12,8 +12,8 @@ TaxiConnect V1 is a Firebase-based taxi coordination web application for the Sun
 ## Core workflows
 
 - Passengers see live taxi availability, send a waiting signal, see conductor taxi assignments and cancel their own signal.
-- Drivers sign in with individual staff accounts, go live, share available seats, update passenger counts, receive route summons and go offline.
-- Conductors monitor live supply and demand, summon drivers, assign available taxis to waiting passengers, manage taxi status and clean stale records.
+- Drivers sign in with individual staff accounts, go live, share available seats, update passenger counts, receive route summons and go offline without deleting their taxi record or stranding assigned passenger groups.
+- Conductors monitor live supply and demand, summon drivers, assign available taxis to waiting passengers, recover assignments when a taxi goes offline, manage taxi status and clean stale records.
 - Passenger and driver sessions restore their active waiting/taxi state after a page refresh.
 
 ## Architecture
