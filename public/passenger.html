@@ -97,7 +97,7 @@
       <span style="font-size:13px;color:#666">people</span>
     </div>
     <button class="btn btn-primary" id="waitBtn" onclick="sendSignal()">📢 I'M WAITING — Alert Conductor</button>
-    <button class="btn btn-grey" id="cancelBtn" onclick="cancelSignal()" style="display:none">✖ Cancel Signal</button>
+    <button class="btn btn-grey" id="cancelBtn" onclick="cancelWaiting()" style="display:none">✖ Cancel Signal</button>
   </div>
 </div>
 
@@ -182,6 +182,8 @@ async function sendSignal() {
     });
 
     myWaitId = result.data.waitId;
+    document.getElementById('waitBtn').style.display = 'none';
+    document.getElementById('cancelBtn').style.display = 'block';
     alert('Waiting signal sent successfully.');
   } catch (error) {
     console.error('signalWaiting failed:', error);
@@ -196,6 +198,8 @@ async function cancelWaiting() {
     const fn = functions.httpsCallable('cancelWaiting');
     await fn({ waitId: myWaitId });
     myWaitId = null;
+    document.getElementById('waitBtn').style.display = 'block';
+    document.getElementById('cancelBtn').style.display = 'none';
   } catch (error) {
     console.error('cancelWaiting failed:', error);
     alert(error?.message || 'Could not cancel waiting signal.');
