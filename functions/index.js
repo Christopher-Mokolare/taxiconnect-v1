@@ -520,8 +520,6 @@ exports.cleanupWaitingPassengers = functions.https.onCall(
   }
 );
 
-// Phone-number pre-approval was removed because the PIN login did not verify phone ownership.
-
 exports.onTaxiStatusChange = functions.database
   .ref("/taxis/{taxiId}/status")
   .onUpdate(async (change, context) => {
