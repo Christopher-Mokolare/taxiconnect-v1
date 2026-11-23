@@ -1,46 +1,23 @@
-# TaxiConnect V1 — Legacy Archive
+# TaxiConnect V1
 
-**Status: ARCHIVED — reference only. Not for production deployment.**
+**Active recovery/development branch:** `feat/v1-deployable-recovery`
 
-This repository contains the historical TaxiConnect Flutter application,
-Firebase backend snapshots, and early web implementation.
+TaxiConnect V1 is being restored as a Firebase-based taxi coordination application. Its architecture remains Firebase Hosting, Firebase Authentication, Cloud Functions, and Realtime Database. V1 is kept separate from TaxiConnect V2.
 
-## Contents
+## Project structure
 
-- `archive/flutter-app/` — archived Flutter application.
-- `backup_20260909_132122/` — historical Firebase Functions, database rules,
-  and early web application.
-- `backup_*` directories — historical Firebase and early-web implementation
-  snapshots from September 2026.
+- `public/` — web landing page, conductor dashboard, driver app, passenger app, Firebase client config.
+- `functions/` — Firebase Cloud Functions.
+- `database.rules.json` — Realtime Database security rules.
+- `archive/flutter-app/` — incomplete historical Flutter source, retained for recovery only.
+- `backup_*/` — historical snapshots retained for comparison and audit.
 
-## Important compatibility warning
+## V1 data model boundary
 
-The legacy application uses a data model based on:
+The archived Flutter code uses `village`, `destination`, `destinationCategory`, and `seatsAvailable`. The restored web/Functions code uses `route`, `capacity`, and `passengersOnboard`. These schemas are not interchangeable. Do not connect the archived Flutter client to the web database contract without a reviewed migration.
 
-- `village`
-- `destination`
-- `destinationCategory`
-- `seatsAvailable`
+## Getting started
 
-The later TaxiConnect platform uses a route-first model with concepts such as
-routes, capacity, passengers onboard, trips, and dispatch.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for Firebase project setup, configuration, validation, and manual deployment prerequisites.
 
-These models are not interchangeable.
-
-**Do not connect this archived application to a newer TaxiConnect database
-or production environment without a separately reviewed migration.**
-
-## Development guidance
-
-This repository is preserved for historical reference and recovery.
-
-- Do not extend it as the active TaxiConnect product.
-- Do not deploy its Firebase Functions or database rules.
-- Do not assume historical credentials or Firebase configuration are valid.
-- Do not copy its schema or authentication assumptions into a newer version
-  without reviewing compatibility.
-
-## Project separation
-
-The newer Cloudflare Workers, D1, Durable Objects, and PWA implementation
-belongs in the separate TaxiConnect V2 repository.
+**Deployment status:** not yet release-ready. The Firebase web configuration is a placeholder, secrets must be configured, database rules require security review, and the Flutter app is incomplete.
