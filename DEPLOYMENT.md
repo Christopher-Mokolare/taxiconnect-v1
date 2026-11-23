@@ -13,7 +13,7 @@ TaxiConnect V1 is a responsive web application for coordinating taxi availabilit
 The repository is configured for Firebase project ID `taxiconnect-dev` in `.firebaserc`. Confirm that this is the intended V1 project before deploying.
 
 1. In Firebase Console, open **Project settings → Your apps** and register or select the V1 Web App.
-2. Copy its Web App configuration into `public/firebase-config.js`. Replace all three placeholders: `apiKey`, `messagingSenderId`, and `appId`. These browser configuration values identify the Firebase project; do not put service-account keys or staff PINs in this file.
+2. Copy its Web App configuration into `public/firebase-config.js`. Replace all three placeholders: `apiKey`, `messagingSenderId`, and `appId`. These browser configuration values identify the Firebase project; do not put service-account keys, admin credentials or staff passwords in this file.
 3. In **Authentication → Sign-in method**, enable **Anonymous** sign-in for passengers and **Email/Password** sign-in for staff.
 4. Confirm that Realtime Database exists in the same project and region. Review `database.rules.json` before publishing it.
 5. Create one Firebase Authentication email/password account for each driver and conductor in **Authentication → Users**.
