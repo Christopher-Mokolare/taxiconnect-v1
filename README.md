@@ -29,6 +29,7 @@ Staff roles are assigned with the Admin SDK provisioning utility in `functions/s
 - `database.rules.json` — Realtime Database security rules.
 - `scripts/validate.js` — repository, configuration and browser-script validation.
 - `tests/app.test.js` — Node smoke tests for routes, auth wiring and database security boundaries.
+- `scripts/test-database-rules.js` — Firebase Realtime Database Emulator authorization tests.
 - `functions/scripts/provision-staff.js` — local Admin SDK utility for assigning staff roles.
 - `archive/flutter-app/` and `backup_*/` — historical source retained for reference, not part of the active web deployment.
 
