@@ -16,15 +16,20 @@
 - Passengers subscribe to their assigned taxi status and see when the taxi becomes unavailable.
 - GitHub Actions validates configuration and browser scripts, runs application smoke tests, and exercises database authorization in the Firebase Emulator Suite.
 
+## Current development setup
+
+- The TaxiConnect-Dev Web App configuration is committed in `public/firebase-config.js`.
+- Anonymous and Email/Password Authentication have been enabled in Firebase Console.
+- Fake staff accounts and sample taxis can be created with the guarded `npm run seed:test` utility. It only targets `taxiconnect-dev` and requires explicit opt-in plus a temporary password.
+
 ## Required before production release
 
-1. Reconfirm that `public/firebase-config.js` points to the intended development Firebase project; the TaxiConnect-Dev Web App configuration is already committed.
-2. Reconfirm Anonymous and Email/Password Authentication are enabled; both were enabled during the current development setup.
-3. Create only fake test staff accounts and sample taxis using the guarded `npm run seed:test` utility.
-4. Assign any separately created staff accounts their custom claims using the Admin SDK provisioning utility.
+1. Configure and verify the separate production Firebase project; do not reuse development test data.
+2. Enable and verify the required Authentication providers in that production project.
+3. Create authorized staff accounts and assign their custom claims using the Admin SDK provisioning utility.
 4. Review and test Realtime Database rules using the Firebase Emulator Suite.
 5. Confirm the intended Firebase project, database instance and region before deployment.
-6. Confirm the project remains on the intended Firebase Spark plan and review the current Hosting, Authentication and Realtime Database quotas.
+6. Confirm the project remains on the intended Firebase plan and review current Hosting, Authentication and Realtime Database quotas.
 7. Run end-to-end tests against a non-production Firebase project, including passenger signal creation/cancellation, driver go-live/offline, conductor summons/status changes, cleanup and session restoration.
 8. Verify manual cleanup controls and operational monitoring; scheduled server-side cleanup is not part of the Spark deployment.
 
