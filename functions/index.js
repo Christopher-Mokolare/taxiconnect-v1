@@ -16,10 +16,6 @@ const ROUTES = {
    DRIVER
    ========================================================= */
 
-/* =========================================================
-   DRIVER
-   ========================================================= */
-
 exports.goLive = functions.https.onCall(async (data, context) => {
   const uid = _requireDriver(context);
 
@@ -68,7 +64,7 @@ exports.goLive = functions.https.onCall(async (data, context) => {
   };
 
   updates[`drivers/${uid}`] = {
-    displayName: profile.displayName || uid,
+    displayName,
     lastSeen: Date.now(),
   };
 
