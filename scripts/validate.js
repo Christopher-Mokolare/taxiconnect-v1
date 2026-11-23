@@ -13,6 +13,7 @@ const requiredPages = [
   "public/driver.html",
   "public/passenger.html",
   "public/firebase-config.js",
+  "public/js/app-common.js",
 ];
 const errors = [];
 
@@ -64,6 +65,19 @@ for (const relative of requiredPages.filter((file) => file.endsWith(".html"))) {
       new vm.Script(body, { filename: relative + " inline script #" + (index + 1) });
     } catch (error) {
       errors.push(relative + " inline script #" + (index + 1) + ": " + error.message);
+    }
+  }
+}
+
+const backendSource = fs.readFileSync(path.join(root, "functions", "index.js"), "utf8");
+const backendExports = new Set(
+  [...backendSource.matchAll(/exports\.([A-Za-z0-9_]+)\s*=/g)].map((match) => match[1])
+);
+for (const relative of ["public/conductor.html", "public/driver.html", "public/passenger.html"]) {
+  const html = fs.readFileSync(path.join(root, relative), "utf8");
+  for (const match of html.matchAll(/httpsCallable\(['"]([^'"]+)['"]\)/g)) {
+    if (!backendExports.has(match[1])) {
+      errors.push(relative + ": missing backend callable " + match[1]);
     }
   }
 }
