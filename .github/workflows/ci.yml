@@ -50,5 +50,9 @@ jobs:
       - name: Run application smoke tests
         run: node --test tests/*.test.js
 
+      - name: Install Firebase rules test SDKs
+        run: npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
+        working-directory: functions
+
       - name: Test Realtime Database security rules in emulator
         run: npx --yes firebase-tools@latest emulators:exec --project taxiconnect-dev --only database "node scripts/test-database-rules.js"
