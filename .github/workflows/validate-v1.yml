@@ -31,3 +31,4 @@ jobs:
           grep -q 'firebase-functions-compat.js' public/conductor.html
           grep -q 'firebase-functions-compat.js' public/driver.html
           grep -q 'firebase-functions-compat.js' public/passenger.html
+          grep -q 'const functions = firebase.functions();' public/driver.html
