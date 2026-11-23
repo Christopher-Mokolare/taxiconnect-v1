@@ -57,6 +57,7 @@ From the repository root:
 ```bash
 node scripts/validate.js
 node --test tests/*.test.js
+npx --yes firebase-tools emulators:exec --project taxiconnect-dev --only database "node scripts/test-database-rules.js"
 ```
 
 The repository CI workflow runs these checks on pushes and pull requests. A green CI result confirms static validation and smoke tests; it does not prove that Firebase credentials, auth providers, rules or live services are configured.
