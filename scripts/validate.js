@@ -15,6 +15,7 @@ const requiredPages = [
   "public/firebase-config.js",
   "public/js/app-common.js",
   "functions/scripts/provision-staff.js",
+  "functions/scripts/seed-test-data.js",
   "scripts/test-database-rules.js",
   "scripts/deploy.sh",
 ];
@@ -53,6 +54,12 @@ try {
   new vm.Script(fs.readFileSync(path.join(root, "functions", "scripts", "provision-staff.js"), "utf8"));
 } catch (error) {
   errors.push("Staff provisioning script: " + error.message);
+}
+
+try {
+  new vm.Script(fs.readFileSync(path.join(root, "functions", "scripts", "seed-test-data.js"), "utf8"));
+} catch (error) {
+  errors.push("Test data seeder: " + error.message);
 }
 
 try {
