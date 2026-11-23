@@ -133,7 +133,7 @@ let myTaxiId = null, myCapacity = 14, summonsRef = null;
 // ── Auth ──────────────────────────────────────────────────────────
 let driverName = '';
 
-// Preserve the custom-token driver identity; anonymous sign-in would replace role claims.
+// Driver access is verified using server-issued Firebase custom claims.
 
 async function staffLogin() {
   const email = document.getElementById('emailInput').value.trim();
@@ -181,7 +181,7 @@ async function signOut() {
 
 function showErr(m) { const e = document.getElementById('authError'); e.textContent = m; e.style.display = 'block'; }
 
-// Restore only a persisted Firebase custom-token session with driver claims.
+// Restore only a signed-in Firebase staff session with driver claims.
 firebase.auth().onAuthStateChanged(async user => {
   if (sessionStorage.getItem('tc_role') !== 'driver') return;
   if (!user) {
