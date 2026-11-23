@@ -67,8 +67,7 @@ The repository CI workflow runs these checks on pushes and pull requests. A gree
 Install the Firebase CLI, authenticate, and verify the target project before deploying:
 
 ```bash
-firebase use taxiconnect-dev
-firebase deploy --only database,hosting
+bash scripts/deploy.sh
 ```
 
 This active deployment does not require Cloud Functions or a Blaze upgrade. Firebase Authentication and Realtime Database remain subject to their Spark quotas and product limits. Check current Firebase plan limits before production traffic.
