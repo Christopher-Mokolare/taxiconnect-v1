@@ -26,20 +26,26 @@ test("shared text rendering escapes HTML-sensitive characters", () => {
   );
 });
 
-test("every web callable has a backend export", () => {
-  const backend = read("functions/index.js");
-  const exports = new Set([...backend.matchAll(/exports\.([A-Za-z0-9_]+)\s*=/g)].map((match) => match[1]));
-  const pages = ["public/conductor.html", "public/driver.html", "public/passenger.html"];
-  const callables = new Set();
-  for (const page of pages) {
-    for (const match of read(page).matchAll(/httpsCallable\(['"]([^'"]+)['"]\)/g)) {
-      callables.add(match[1]);
-    }
+test("role pages use Realtime Database directly without callable Functions", () => {
+  for (const page of ["public/conductor.html", "public/driver.html", "public/passenger.html"]) {
+    const html = read(page);
+    assert.match(html, /firebase\.database\(\)/);
+    assert.match(html, /\.ref\(/);
+    assert.doesNotMatch(html, /httpsCallable|firebase-functions-compat/);
   }
-  assert.ok(callables.size >= 10, "expected the core operational callables to be present");
-  for (const callable of callables) {
-    assert.ok(exports.has(callable), "missing backend callable: " + callable);
-  }
+});
+
+test("database rules enforce role and passenger ownership boundaries", () => {
+  const rules = JSON.parse(read("database.rules.json")).rules;
+  assert.equal(rules[".read"], false);
+  assert.equal(rules[".write"], false);
+  assert.match(rules.taxis[".write"], /isDriver/);
+  assert.match(rules.taxis[".write"], /isConductor/);
+  assert.match(rules.waitingPassengers["$waitId"][".write"], /passengerId/);
+  assert.match(rules.waitingPassengers["$waitId"][".read"], /auth.uid/);
+  assert.match(rules.passengerWaiting["$uid"][".read"], /auth.uid/);
+  assert.match(rules.summons[".read"], /isDriver/);
+  assert.match(rules.summons["$route"][".write"], /isConductor/);
 });
 
 test("all role pages load shared helpers and Firebase configuration", () => {
@@ -58,8 +64,7 @@ test("all role pages load shared helpers and Firebase configuration", () => {
   }
 });
 
-test("staff authentication requires individual Firebase accounts and server role claims", () => {
-  const backend = read("functions/index.js");
+test("staff authentication uses individual Firebase accounts and admin role claims", () => {
   const conductor = read("public/conductor.html");
   const driver = read("public/driver.html");
   const provisioner = read("functions/scripts/provision-staff.js");
@@ -68,13 +73,11 @@ test("staff authentication requires individual Firebase accounts and server role
   assert.match(conductor, /claims\.isConductor !== true/);
   assert.match(driver, /claims\.isDriver !== true/);
   assert.match(provisioner, /setCustomUserClaims/);
-  assert.doesNotMatch(backend, /loginWithPin|DRIVER_PIN|CONDUCTOR_PIN/);
 });
 
-test("unsafe or removed administrative endpoints are not exposed", () => {
-  const backend = read("functions/index.js");
-  const conductor = read("public/conductor.html");
-  assert.doesNotMatch(backend, /exports\.clearAllData\s*=/);
-  assert.doesNotMatch(backend, /exports\.approvePhone\s*=/);
-  assert.doesNotMatch(conductor, /clearAllData|approvePhone|registerPhone/);
+test("Spark deployment does not publish Cloud Functions", () => {
+  const config = JSON.parse(read("firebase.json"));
+  assert.equal(Object.hasOwn(config, "functions"), false);
+  assert.deepEqual(Object.keys(config).sort(), ["database", "hosting"]);
+  assert.doesNotMatch(read("public/firebase-config.js"), /serviceAccount|private_key/i);
 });
