@@ -14,6 +14,7 @@ const requiredPages = [
   "public/passenger.html",
   "public/firebase-config.js",
   "public/js/app-common.js",
+  "functions/scripts/provision-staff.js",
 ];
 const errors = [];
 
@@ -41,6 +42,15 @@ if (fs.existsSync(functionsFile)) {
   if (/exports\.clearAllData\s*=/.test(source)) {
     errors.push("A whole-database deletion callable must never be exposed.");
   }
+  if (/loginWithPin|DRIVER_PIN|CONDUCTOR_PIN/.test(source)) {
+    errors.push("Shared staff PIN authentication must not be present.");
+  }
+}
+
+try {
+  new vm.Script(fs.readFileSync(path.join(root, "functions", "scripts", "provision-staff.js"), "utf8"));
+} catch (error) {
+  errors.push("Staff provisioning script: " + error.message);
 }
 
 for (const relative of requiredPages.filter((file) => file.endsWith(".html"))) {
