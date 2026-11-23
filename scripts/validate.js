@@ -15,6 +15,7 @@ const requiredPages = [
   "public/firebase-config.js",
   "public/js/app-common.js",
   "functions/scripts/provision-staff.js",
+  "scripts/test-database-rules.js",
 ];
 const errors = [];
 
@@ -51,6 +52,12 @@ try {
   new vm.Script(fs.readFileSync(path.join(root, "functions", "scripts", "provision-staff.js"), "utf8"));
 } catch (error) {
   errors.push("Staff provisioning script: " + error.message);
+}
+
+try {
+  new vm.Script(fs.readFileSync(path.join(root, "scripts", "test-database-rules.js"), "utf8"));
+} catch (error) {
+  errors.push("Realtime Database emulator test: " + error.message);
 }
 
 for (const relative of requiredPages.filter((file) => file.endsWith(".html"))) {
