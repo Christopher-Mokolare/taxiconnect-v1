@@ -4,9 +4,9 @@ TaxiConnect V1 is a responsive taxi-coordination web application for the Sun Cit
 
 ## Application roles
 
-- **Passenger:** view live taxis by route, signal a waiting group, restore an active signal after refresh, and cancel their own signal.
+- **Passenger:** view live taxis by route, signal a waiting group, see when a conductor assigns a taxi, restore an active signal after refresh, and cancel their own signal.
 - **Driver:** sign in with an individual staff account, publish taxi capacity and passenger count, update occupancy, receive route summons, restore an active taxi after refresh, and go offline.
-- **Conductor:** view live taxi and passenger demand, summon drivers, mark taxis departed or broken down, remove taxis, dismiss waiting signals and clean stale records.
+- **Conductor:** view live taxi and passenger demand, summon drivers, assign available taxis to waiting groups with seat-capacity checks, mark taxis departed or broken down, remove taxis, clear waiting signals and clean stale records.
 
 ## Firebase project setup
 
@@ -45,6 +45,7 @@ The active application does not call Cloud Functions. Passenger signals, driver 
 
 - Passenger sessions use Firebase Anonymous Authentication and can create/delete only their own waiting signal.
 - Drivers need the `isDriver` custom claim and can create, update or remove only their own taxi record.
+- Conductors can assign a waiting group only to an active taxi on the same route with enough unreserved seats. The passenger's own live waiting record reflects the assignment.
 - Conductors need the `isConductor` custom claim and can manage taxis, waiting signals, history and route summons.
 - Root database reads and writes are denied by default.
 
