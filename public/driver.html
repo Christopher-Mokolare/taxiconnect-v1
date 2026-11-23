@@ -236,6 +236,7 @@ async function restoreMyTaxi() {
   if (!entry) return;
 
   const [taxiId, taxi] = entry;
+  if (taxi.status === 'offline') return;
   myTaxiId = taxiId;
   myCapacity = Number(taxi.capacity || 14);
   capacity = myCapacity;
@@ -326,10 +327,8 @@ async function goLive() {
     if (token.claims.isDriver !== true) throw new Error('Driver access required.');
 
     const existing = await db.ref('taxis').orderByChild('driverId').equalTo(user.uid).once('value');
-    const updates = {};
-    Object.keys(existing.val() || {}).forEach(id => { updates['taxis/' + id] = null; });
-
-    const taxiRef = db.ref('taxis').push();
+    const existingEntry = Object.entries(existing.val() || {})[0];
+    const taxiRef = existingEntry ? db.ref('taxis/' + existingEntry[0]) : db.ref('taxis').push();
     myTaxiId = taxiRef.key;
     myCapacity = capacity;
     liveOnboard = onboard;
@@ -396,7 +395,7 @@ async function goOffline() {
   if (taxi && taxi.driverId !== firebase.auth().currentUser?.uid) {
     throw new Error('You do not own this taxi.');
   }
-  if (taxi) await ref.remove();
+  if (taxi) await ref.update({ status: 'offline', lastUpdated: firebase.database.ServerValue.TIMESTAMP });
   stopHeartbeat();
   myTaxiId = null;
   onboard = 0;
