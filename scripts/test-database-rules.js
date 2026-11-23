@@ -1,58 +1,52 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const admin = require("../functions/node_modules/firebase-admin");
 
-const host = process.env.FIREBASE_DATABASE_EMULATOR_HOST || "127.0.0.1:9000";
-const namespace = "taxiconnect-dev-default-rtdb";
-const base = "http://" + host;
+const projectId = "taxiconnect-dev";
+const databaseURL = "http://127.0.0.1:9000?ns=taxiconnect-dev-default-rtdb";
 
-const passenger = {
-  uid: "passenger-1",
-  token: { firebase: { sign_in_provider: "anonymous" } }
-};
-const otherPassenger = {
-  uid: "passenger-2",
-  token: { firebase: { sign_in_provider: "anonymous" } }
-};
-const driver = { uid: "driver-1", token: { isDriver: true } };
-const otherDriver = { uid: "driver-2", token: { isDriver: true } };
-const conductor = { uid: "conductor-1", token: { isConductor: true } };
+function makeClient(name, uid, claims = {}) {
+  const app = admin.initializeApp({
+    projectId,
+    databaseURL,
+    databaseAuthVariableOverride: uid ? { uid, ...claims } : null
+  }, name);
+  return { app, db: admin.database(app) };
+}
 
-async function request(path, method = "GET", body, identity) {
-  const url = new URL("/" + path.replace(/^\/+/, "") + ".json", base);
-  url.searchParams.set("ns", namespace);
-  const headers = { "Content-Type": "application/json" };
-
-  if (identity === "owner") {
-    headers.Authorization = "Bearer owner";
-  } else if (identity) {
-    url.searchParams.set("auth_variable_override", JSON.stringify(identity));
+async function expectAllowed(label, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    throw new Error(label + " should be allowed, but failed: " + error.message);
   }
-
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
-  const text = await response.text();
-  let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch {}
-  return { ok: response.ok, status: response.status, data, text };
 }
 
-async function expectAllowed(label, path, method, body, identity) {
-  const result = await request(path, method, body, identity);
-  assert.equal(result.ok, true, label + " should be allowed; got " + result.status + " " + result.text);
-  return result.data;
-}
-
-async function expectDenied(label, path, method, body, identity) {
-  const result = await request(path, method, body, identity);
-  assert.equal(result.ok, false, label + " should be denied");
+async function expectDenied(label, operation) {
+  let denied = false;
+  try {
+    await operation();
+  } catch (error) {
+    denied = true;
+  }
+  assert.equal(denied, true, label + " should be denied by Realtime Database rules");
 }
 
 async function main() {
-  await expectAllowed("reset emulator database", "", "PUT", {
+  const owner = makeClient("rules-owner", "rules-test-admin", { admin: true });
+  const passenger = makeClient("rules-passenger", "passenger-1", {
+    firebase: { sign_in_provider: "anonymous" }
+  });
+  const otherPassenger = makeClient("rules-other-passenger", "passenger-2", {
+    firebase: { sign_in_provider: "anonymous" }
+  });
+  const driver = makeClient("rules-driver", "driver-1", { isDriver: true });
+  const otherDriver = makeClient("rules-other-driver", "driver-2", { isDriver: true });
+  const conductor = makeClient("rules-conductor", "conductor-1", { isConductor: true });
+  const unauthenticated = makeClient("rules-unauthenticated", null);
+
+  const seed = {
     taxis: {
       seedTaxi: {
         driverId: "driver-2",
@@ -73,31 +67,32 @@ async function main() {
         status: "waiting"
       }
     }
-  }, "owner");
+  };
 
-  await expectDenied("unauthenticated root read", "", "GET", undefined, null);
+  await expectAllowed("reset emulator database", () => owner.db.ref("/").set(seed));
+  await expectDenied("unauthenticated root read", () => unauthenticated.db.ref("/").once("value"));
 
   const ownWait = {
     route: "SUN_CITY",
     groupSize: 2,
-    passengerId: passenger.uid,
+    passengerId: "passenger-1",
     timestamp: Date.now(),
     status: "waiting"
   };
-  await expectAllowed("passenger creates own wait signal", "waitingPassengers/wait-1", "PUT", ownWait, passenger);
-  await expectAllowed("passenger reads own wait signal", "waitingPassengers/wait-1", "GET", undefined, passenger);
-  await expectDenied("passenger cannot read another passenger signal", "waitingPassengers/otherWait", "GET", undefined, passenger);
-  await expectDenied("passenger cannot list all waiting signals", "waitingPassengers", "GET", undefined, passenger);
-  await expectDenied("passenger cannot create signal for another UID", "waitingPassengers/spoofed", "PUT", {
+  await expectAllowed("passenger creates own wait signal", () => passenger.db.ref("waitingPassengers/wait-1").set(ownWait));
+  await expectAllowed("passenger reads own wait signal", () => passenger.db.ref("waitingPassengers/wait-1").once("value"));
+  await expectDenied("passenger cannot read another passenger signal", () => passenger.db.ref("waitingPassengers/otherWait").once("value"));
+  await expectDenied("passenger cannot list all waiting signals", () => passenger.db.ref("waitingPassengers").once("value"));
+  await expectDenied("passenger cannot create signal for another UID", () => passenger.db.ref("waitingPassengers/spoofed").set({
     ...ownWait,
-    passengerId: otherPassenger.uid
-  }, passenger);
-  await expectAllowed("passenger stores own wait index", "passengerWaiting/passenger-1", "PUT", "wait-1", passenger);
-  await expectDenied("passenger cannot store another user's wait index", "passengerWaiting/passenger-2", "PUT", "wait-1", passenger);
-  await expectAllowed("passenger cancels own signal", "waitingPassengers/wait-1", "DELETE", undefined, passenger);
+    passengerId: "passenger-2"
+  }));
+  await expectAllowed("passenger stores own wait index", () => passenger.db.ref("passengerWaiting/passenger-1").set("wait-1"));
+  await expectDenied("passenger cannot store another user's wait index", () => passenger.db.ref("passengerWaiting/passenger-2").set("wait-1"));
+  await expectAllowed("passenger cancels own signal", () => passenger.db.ref("waitingPassengers/wait-1").remove());
 
   const ownTaxi = {
-    driverId: driver.uid,
+    driverId: "driver-1",
     driverName: "Driver One",
     route: "RUSTENBURG",
     capacity: 14,
@@ -105,36 +100,46 @@ async function main() {
     status: "loading",
     lastUpdated: Date.now()
   };
-  await expectAllowed("driver creates own taxi", "taxis/taxi-1", "PUT", ownTaxi, driver);
-  await expectDenied("driver cannot create taxi for another UID", "taxis/taxi-spoof", "PUT", {
+  await expectAllowed("driver creates own taxi", () => driver.db.ref("taxis/taxi-1").set(ownTaxi));
+  await expectDenied("driver cannot create taxi for another UID", () => driver.db.ref("taxis/taxi-spoof").set({
     ...ownTaxi,
-    driverId: otherDriver.uid
-  }, driver);
-  await expectAllowed("driver updates own passenger count", "taxis/taxi-1", "PATCH", {
+    driverId: "driver-2"
+  }));
+  await expectAllowed("driver updates own passenger count", () => driver.db.ref("taxis/taxi-1").update({
     passengersOnboard: 4,
     lastUpdated: Date.now()
-  }, driver);
-  await expectDenied("driver cannot mark taxi departed", "taxis/taxi-1", "PATCH", {
+  }));
+  await expectDenied("driver cannot mark taxi departed", () => driver.db.ref("taxis/taxi-1").update({
     status: "departed",
     lastUpdated: Date.now()
-  }, driver);
-  await expectDenied("driver cannot remove another driver's taxi", "taxis/seedTaxi", "DELETE", undefined, driver);
+  }));
+  await expectDenied("driver cannot remove another driver's taxi", () => driver.db.ref("taxis/seedTaxi").remove());
 
-  await expectAllowed("conductor lists waiting passengers", "waitingPassengers", "GET", undefined, conductor);
-  await expectAllowed("conductor marks taxi breakdown", "taxis/taxi-1", "PATCH", {
+  await expectAllowed("conductor lists waiting passengers", () => conductor.db.ref("waitingPassengers").once("value"));
+  await expectAllowed("conductor marks taxi breakdown", () => conductor.db.ref("taxis/taxi-1").update({
     status: "breakdown",
     lastUpdated: Date.now()
-  }, conductor);
-  await expectAllowed("conductor publishes route summons", "summons/SUN_CITY", "PUT", {
+  }));
+  await expectAllowed("conductor publishes route summons", () => conductor.db.ref("summons/SUN_CITY").set({
     count: 4,
     timestamp: Date.now(),
-    conductorId: conductor.uid
-  }, conductor);
-  await expectDenied("conductor cannot publish unsupported route", "summons/UNKNOWN", "PUT", {
+    conductorId: "conductor-1"
+  }));
+  await expectDenied("conductor cannot publish unsupported route", () => conductor.db.ref("summons/UNKNOWN").set({
     count: 4,
     timestamp: Date.now(),
-    conductorId: conductor.uid
-  }, conductor);
+    conductorId: "conductor-1"
+  }));
+
+  await Promise.all([
+    owner.app.delete(),
+    passenger.app.delete(),
+    otherPassenger.app.delete(),
+    driver.app.delete(),
+    otherDriver.app.delete(),
+    conductor.app.delete(),
+    unauthenticated.app.delete()
+  ]);
 
   console.log("Realtime Database security emulator tests passed.");
 }
