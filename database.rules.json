@@ -35,7 +35,7 @@
     },
     "passengerWaiting": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
+        ".read": "auth != null && (auth.uid === $uid || auth.token.isConductor === true)",
         ".write": "auth != null && (auth.uid === $uid && auth.token.firebase.sign_in_provider === 'anonymous' || auth.token.isConductor === true)",
         ".validate": "!newData.exists() || newData.isString()"
       }
