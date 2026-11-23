@@ -5,13 +5,13 @@
 - Staff sign-in uses individual Firebase Authentication email/password accounts.
 - Driver and conductor permissions are server-assigned Firebase custom claims. The browser cannot grant itself a role.
 - An Admin SDK provisioning utility assigns staff roles using Application Default Credentials.
-- Backend callables independently verify the required driver or conductor claim.
+- Realtime Database rules independently verify the required driver or conductor custom claim and record ownership for every write.
 - Passenger waiting-signal cancellation is scoped to the authenticated passenger UID.
 - Passengers can restore their active waiting signal after refreshing the page.
 - Drivers can restore their active taxi session after refreshing the page.
 - The destructive whole-database deletion callable and unused phone pre-approval endpoint have been removed.
 - Conductor actions are scoped to individual taxis and waiting signals.
-- GitHub Actions validates configuration, browser scripts, backend callable contracts and application smoke tests.
+- GitHub Actions validates configuration and browser scripts, runs application smoke tests, and exercises database authorization in the Firebase Emulator Suite.
 
 ## Required before production release
 
