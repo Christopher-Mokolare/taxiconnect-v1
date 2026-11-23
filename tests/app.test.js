@@ -69,6 +69,7 @@ test("all role pages load shared helpers and Firebase configuration", () => {
 test("passenger assignment and conductor taxi selection are connected", () => {
   const passenger = read("public/passenger.html");
   const conductor = read("public/conductor.html");
+  const driver = read("public/driver.html");
   assert.match(passenger, /let myWaitId = null, myWaitRef = null/);
   assert.match(passenger, /renderWaitStatus\(record\)/);
   assert.match(passenger, /assignedTaxiId/);
