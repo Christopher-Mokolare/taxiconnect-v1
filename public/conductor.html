@@ -291,7 +291,17 @@ function renderAlert() {
 
 // ── Actions ───────────────────────────────────────────────────────
 
-async function setStatus(id, status) {\n  try {\n    const fn = functions.httpsCallable('setTaxiStatus');\n    await fn({ taxiId: id, status });\n  } catch (error) {\n    console.error('setTaxiStatus failed:', error);\n    alert(error?.message || 'Could not update taxi status.');\n  }\n}\n\nasync function removeTaxi(id) {
+async function setStatus(id, status) {
+  try {
+    const fn = functions.httpsCallable('setTaxiStatus');
+    await fn({ taxiId: id, status });
+  } catch (error) {
+    console.error('setTaxiStatus failed:', error);
+    alert(error?.message || 'Could not update taxi status.');
+  }
+}
+
+async function removeTaxi(id) {
   if (!confirm('Remove this taxi?')) return;
 
   try {
