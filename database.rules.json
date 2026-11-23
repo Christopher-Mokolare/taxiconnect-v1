@@ -10,8 +10,8 @@
       ],
       ".read": "auth != null",
       "$taxiId": {
-        ".write": "auth != null && (auth.token.isConductor === true || (auth.token.isDriver === true && ((!data.exists() && newData.child('driverId').val() === auth.uid) || (data.child('driverId').val() === auth.uid && (!newData.exists() || newData.child('driverId').val() === auth.uid)))))",
-        ".validate": "!newData.exists() || (newData.hasChildren(['driverId','driverName','route','capacity','passengersOnboard','status','lastUpdated']) && newData.child('driverId').isString() && newData.child('driverName').isString() && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('capacity').isNumber() && newData.child('capacity').val() >= 1 && newData.child('capacity').val() <= 22 && newData.child('passengersOnboard').isNumber() && newData.child('passengersOnboard').val() >= 0 && newData.child('passengersOnboard').val() <= newData.child('capacity').val() && newData.child('status').val().matches(/^(loading|full|departed|breakdown)$/) && newData.child('lastUpdated').isNumber() && newData.child('lastUpdated').val() <= now + 5000 && newData.child('lastUpdated').val() >= now - 60000 && (!newData.child('statusUpdatedBy').exists() || newData.child('statusUpdatedBy').isString()) && (auth.token.isConductor === true || newData.child('status').val().matches(/^(loading|full)$/)))",
+        ".write": "auth != null && (auth.token.isConductor === true || (auth.token.isDriver === true && ((!data.exists() && newData.child('driverId').val() === auth.uid) || (data.child('driverId').val() === auth.uid && newData.exists() && newData.child('driverId').val() === auth.uid))))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['driverId','driverName','route','capacity','passengersOnboard','status','lastUpdated']) && newData.child('driverId').isString() && newData.child('driverName').isString() && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('capacity').isNumber() && newData.child('capacity').val() >= 1 && newData.child('capacity').val() <= 22 && newData.child('passengersOnboard').isNumber() && newData.child('passengersOnboard').val() >= 0 && newData.child('passengersOnboard').val() <= newData.child('capacity').val() && newData.child('status').val().matches(/^(loading|full|offline|departed|breakdown)$/) && newData.child('lastUpdated').isNumber() && newData.child('lastUpdated').val() <= now + 5000 && newData.child('lastUpdated').val() >= now - 60000 && (!newData.child('statusUpdatedBy').exists() || newData.child('statusUpdatedBy').isString()) && (auth.token.isConductor === true || newData.child('status').val().matches(/^(loading|full|offline)$/)))",
         "driverId": {
           ".validate": "newData.isString()"
         },
@@ -28,7 +28,7 @@
           ".validate": "newData.isNumber() && newData.val() >= 0"
         },
         "status": {
-          ".validate": "newData.val().matches(/^(loading|full|departed|breakdown)$/) && (auth.token.isConductor === true || newData.val().matches(/^(loading|full)$/))"
+          ".validate": "newData.val().matches(/^(loading|full|offline|departed|breakdown)$/) && (auth.token.isConductor === true || newData.val().matches(/^(loading|full|offline)$/))"
         },
         "lastUpdated": {
           ".validate": "newData.isNumber() && newData.val() <= now + 5000 && newData.val() >= now - 60000"
