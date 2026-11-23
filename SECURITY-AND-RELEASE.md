@@ -10,7 +10,8 @@
 - Passengers can restore their active waiting signal after refreshing the page.
 - Drivers can restore their active taxi session after refreshing the page.
 - The destructive whole-database deletion callable and unused phone pre-approval endpoint have been removed.
-- Conductor actions are scoped to individual taxis and waiting signals.
+- Conductors can assign waiting groups only to active taxis on the same route with enough remaining seats; assignment state is visible to the passenger.
+- If a taxi is marked broken down or removed, its assigned waiting groups are returned to the waiting queue.
 - GitHub Actions validates configuration and browser scripts, runs application smoke tests, and exercises database authorization in the Firebase Emulator Suite.
 
 ## Required before production release
