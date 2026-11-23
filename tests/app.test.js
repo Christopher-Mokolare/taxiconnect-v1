@@ -41,6 +41,8 @@ test("database rules enforce role and passenger ownership boundaries", () => {
   assert.equal(rules[".write"], false);
   assert.match(rules.taxis["$taxiId"][".write"], /isDriver/);
   assert.match(rules.taxis["$taxiId"][".write"], /isConductor/);
+  assert.match(rules.taxis["$taxiId"][".write"], /newData.exists\(\)/);
+  assert.match(rules.taxis["$taxiId"][".validate"], /offline/);
   assert.match(rules.waitingPassengers["$waitId"][".write"], /passengerId/);
   assert.match(rules.waitingPassengers["$waitId"][".read"], /auth.uid/);
   assert.match(rules.passengerWaiting["$uid"][".read"], /auth.uid/);
@@ -73,6 +75,10 @@ test("passenger assignment and conductor taxi selection are connected", () => {
   assert.match(conductor, /async function assignTaxi\(waitId\)/);
   assert.match(conductor, /status: 'assigned'/);
   assert.match(conductor, /freeSeats < Number\(passenger\.groupSize \|\| 1\)/);
+  assert.match(conductor, /requeueAssignment/);
+  assert.match(conductor, /taxi.status !== 'offline'/);
+  assert.match(driver, /status: 'offline'/);
+  assert.match(passenger, /t.status !== 'offline'/);
 });
 
 test("staff authentication uses individual Firebase accounts and admin role claims", () => {
