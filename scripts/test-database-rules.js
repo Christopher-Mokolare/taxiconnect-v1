@@ -109,6 +109,8 @@ async function main() {
       lastUpdated: Date.now()
     }));
     await assertFails(remove(ref(driverDb, "taxis/seedTaxi")));
+    await assertFails(get(ref(passengerDb, "drivers/driver-1")));
+    await assertSucceeds(get(ref(driverDb, "drivers/driver-1")));
 
     await assertSucceeds(get(ref(conductorDb, "waitingPassengers")));
     await assertSucceeds(update(ref(conductorDb, "taxis/taxi-1"), {
