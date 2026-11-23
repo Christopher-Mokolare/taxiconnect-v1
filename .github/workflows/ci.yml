@@ -21,7 +21,7 @@ jobs:
   validate:
     name: Validate V1 application
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -46,3 +46,6 @@ jobs:
 
       - name: Run application smoke tests
         run: node --test tests/*.test.js
+
+      - name: Test Realtime Database security rules in emulator
+        run: npx --yes firebase-tools@latest emulators:exec --project taxiconnect-dev --only database "node scripts/test-database-rules.js"
