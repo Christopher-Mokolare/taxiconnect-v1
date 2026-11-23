@@ -290,15 +290,32 @@ function renderWaiting() {
   const el = document.getElementById('waitingList');
   const entries = Object.entries(allWaiting);
   if (!entries.length) { el.innerHTML = '<div class="empty">No passengers waiting.</div>'; return; }
-  el.innerHTML = entries.map(([id,w]) => `
+  el.innerHTML = entries.map(([id,w]) => {
+    const matchingTaxis = Object.entries(allTaxis).filter(([,taxi]) =>
+      taxi.route === w.route && taxi.status !== 'breakdown' &&
+      Number(taxi.passengersOnboard || 0) < Number(taxi.capacity || 14)
+    );
+    const assignment = w.status === 'assigned'
+      ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Taxi assigned</div>'
+      : matchingTaxis.length
+        ? '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">' +
+          '<select id="assign-' + escapeHtml(id) + '" aria-label="Choose taxi for passenger" style="flex:1;min-width:0;padding:8px;border:1px solid #ddd;border-radius:7px">' +
+          matchingTaxis.map(([taxiId,taxi]) => '<option value="' + escapeHtml(taxiId) + '">' +
+            escapeHtml(taxi.driverName || 'Driver') + ' · ' +
+            Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0)) + ' seats</option>').join('') +
+          '</select><button onclick="assignTaxi(\'' + escapeHtml(id) + '\')" style="padding:8px 12px;border:0;border-radius:7px;background:#146c43;color:#fff;font-weight:700;cursor:pointer">Assign</button></div>'
+        : '<div class="meta">No available taxi on this route yet.</div>';
+    return `
     <div class="taxi-row">
       <div class="row-header">
         <span style="font-size:13px;font-weight:600">${routeLabel(w.route)}</span>
         <span class="badge b-needs">👥 ${w.groupSize||1}</span>
       </div>
       <div class="meta">⏱ ${timeAgo(w.timestamp)}</div>
-      <button onclick="dismiss('${id}')" style="margin-top:5px;padding:4px 10px;border:none;border-radius:6px;background:#28a745;color:#fff;font-size:11px;font-weight:600;cursor:pointer">✅ Assigned</button>
-    </div>`).join('');
+      ${assignment}
+      <button onclick="dismiss('${id}')" style="margin-top:8px;padding:4px 10px;border:none;border-radius:6px;background:#6c757d;color:#fff;font-size:11px;font-weight:600;cursor:pointer">Clear signal</button>
+    </div>`;
+  }).join('');
 }
 
 function renderAlert() {
@@ -363,6 +380,36 @@ async function removeTaxi(id) {
   } catch (error) {
     console.error('removeTaxi failed:', error);
     alert(error?.message || 'Could not remove taxi.');
+  }
+}
+
+async function assignTaxi(waitId) {
+  try {
+    const passengerRef = db.ref('waitingPassengers/' + waitId);
+    const passengerSnap = await passengerRef.once('value');
+    const passenger = passengerSnap.val();
+    if (!passenger || passenger.status !== 'waiting') {
+      throw new Error('This waiting request is no longer available.');
+    }
+    const select = document.getElementById('assign-' + waitId);
+    const taxiId = select?.value;
+    if (!taxiId) throw new Error('Choose an available taxi first.');
+
+    const taxiSnap = await db.ref('taxis/' + taxiId).once('value');
+    const taxi = taxiSnap.val();
+    if (!taxi || taxi.route !== passenger.route || taxi.status === 'breakdown' ||
+        Number(taxi.passengersOnboard || 0) >= Number(taxi.capacity || 14)) {
+      throw new Error('That taxi is no longer available. Refresh and choose another.');
+    }
+
+    await passengerRef.update({
+      status: 'assigned',
+      assignedTaxiId: taxiId,
+      assignedAt: firebase.database.ServerValue.TIMESTAMP
+    });
+  } catch (error) {
+    console.error('Taxi assignment failed:', error);
+    alert(error?.message || 'Could not assign this taxi.');
   }
 }
 
