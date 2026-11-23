@@ -199,14 +199,23 @@ async function signOut() {
 function showErr(m) { const e = document.getElementById('authError'); e.textContent = m; e.style.display = 'block'; }
 
 // Auto-login if PIN session still active
-firebase.auth().onAuthStateChanged(user => {
-  if (!user) return;
+firebase.auth().onAuthStateChanged(async user => {
+  if (!user || sessionStorage.getItem('tc_role') !== 'conductor') return;
 
-  if (sessionStorage.getItem('tc_role') === 'conductor') {
+  try {
+    const token = await user.getIdTokenResult();
+    if (token.claims.isConductor !== true) throw new Error('Conductor role claim missing');
     document.getElementById('signOutBtn').style.display = 'block';
     show('appScreen');
     subscribe();
     requestNotificationPermission();
+  } catch (error) {
+    console.error('Conductor session restore failed:', error);
+    sessionStorage.removeItem('tc_role');
+    sessionStorage.removeItem('tc_name');
+    await firebase.auth().signOut();
+    showErr('This account does not have conductor access. Please sign in again.');
+    show('authScreen');
   }
 });
 
