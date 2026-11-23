@@ -13,12 +13,24 @@ TaxiConnect V1 is a responsive taxi-coordination web application for the Sun Cit
 The repository is configured for Firebase project ID `taxiconnect-dev` in `.firebaserc`. Confirm that this is the intended V1 project before deploying.
 
 1. In Firebase Console, open **Project settings → Your apps** and register or select the V1 Web App.
-2. Copy its Web App configuration into `public/firebase-config.js`. Replace the placeholders: `apiKey`, `messagingSenderId`, and `appId`. These browser configuration values identify the Firebase project; do not put service-account keys, admin credentials or staff passwords in this file.
-3. In **Authentication → Sign-in method**, enable **Anonymous** sign-in for passengers and **Email/Password** sign-in for staff.
+2. Verify that `public/firebase-config.js` matches the TaxiConnect-Dev Web App. The current branch already contains the supplied development configuration. These browser configuration values identify the Firebase project; do not put service-account keys, admin credentials or staff passwords in this file.
+3. Confirm **Anonymous** sign-in and **Email/Password** sign-in are enabled in **Authentication → Sign-in method**. Both were enabled during the current development setup.
 4. Confirm that Realtime Database exists in the same project and region. Review `database.rules.json` before publishing it.
 5. Create one Firebase Authentication email/password account for each driver and conductor in **Authentication → Users**.
 6. Assign each staff account its server-side role using the provisioning utility below.
 7. Configure Firebase CLI access for the intended project and verify the selected project with `firebase use`.
+
+## Create the fake test accounts and sample taxis
+
+For development testing only, the repository includes a guarded seeder. It creates `driver1@taxiconnect.test`, `driver2@taxiconnect.test` and `conductor@taxiconnect.test`, assigns their custom claims, and creates two clearly named sample taxis. It refuses to run unless the development project and explicit test-seed confirmation are supplied.
+
+```bash
+cd functions
+npm ci
+TAXICONNECT_ALLOW_TEST_SEED=1 TAXICONNECT_TEST_PASSWORD='use-a-temporary-password-of-at-least-12-characters' npm run seed:test
+```
+
+Authenticate with Google Application Default Credentials first. The temporary password is supplied through the environment and is never written to the repository or printed by the script. Passenger test signals are created from the Passenger page through anonymous authentication. Do not use real passenger, driver or conductor information in this environment.
 
 ## Provision individual staff identities
 
