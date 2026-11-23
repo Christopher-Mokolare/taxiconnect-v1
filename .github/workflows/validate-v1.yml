@@ -3,32 +3,42 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, feat/v1-deployable-recovery]
+    branches: [main, feat/v1-product-completion]
 permissions:
   contents: read
 jobs:
-  functions:
+  web:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install Functions dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install Firebase Admin tooling dependencies
+        run: npm ci
         working-directory: functions
-      - name: Check Functions JavaScript syntax
-        run: npm run check
+      - name: Check provisioning utility and retained backend syntax
+        run: |
+          node --check scripts/provision-staff.js
+          npm run check
         working-directory: functions
       - name: Validate Firebase JSON
         run: node -e "for (const f of ['firebase.json','.firebaserc','database.rules.json']) JSON.parse(require('fs').readFileSync(f,'utf8')); console.log('Firebase JSON valid')"
-      - name: Verify web entrypoints and SDK dependencies
+      - name: Verify Spark web entrypoints and SDK dependencies
         run: |
           test -s public/index.html
           test -s public/conductor.html
           test -s public/driver.html
           test -s public/passenger.html
-          grep -q 'firebase-functions-compat.js' public/conductor.html
-          grep -q 'firebase-functions-compat.js' public/driver.html
-          grep -q 'firebase-functions-compat.js' public/passenger.html
-          grep -q 'const functions = firebase.functions();' public/driver.html
+          grep -q 'firebase-database-compat.js' public/conductor.html
+          grep -q 'firebase-database-compat.js' public/driver.html
+          grep -q 'firebase-database-compat.js' public/passenger.html
+          ! grep -q 'firebase-functions-compat.js' public/conductor.html
+          ! grep -q 'firebase-functions-compat.js' public/driver.html
+          ! grep -q 'firebase-functions-compat.js' public/passenger.html
+          grep -q 'firebase.database()' public/conductor.html
+          grep -q 'firebase.database()' public/driver.html
+          grep -q 'firebase.database()' public/passenger.html
+          ! grep -q 'httpsCallable' public/conductor.html
+          ! grep -q 'httpsCallable' public/driver.html
+          ! grep -q 'httpsCallable' public/passenger.html
