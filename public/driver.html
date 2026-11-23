@@ -71,6 +71,7 @@
     <label for="passwordInput" style="display:block;font-size:12px;color:#666;margin-top:10px">Password</label>
     <input type="password" id="passwordInput" autocomplete="current-password" placeholder="Your password" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-top:6px" />
     <button class="btn btn-green" onclick="staffLogin()">Enter App</button>
+    <button type="button" class="btn" style="background:transparent;color:#536174;border:1px solid #d5dce5;margin-top:6px" onclick="resetPassword()">Forgot password?</button>
   </div>
   <div id="authError" class="alert a-danger" style="display:none;margin-top:10px"></div>
 </div>
@@ -162,6 +163,21 @@ async function staffLogin() {
   } catch (err) {
     console.error('Driver sign in failed:', err);
     showErr(err?.message || 'Could not sign in.');
+  }
+}
+
+async function resetPassword() {
+  const email = document.getElementById('emailInput').value.trim();
+  if (!email) {
+    showErr('Enter your staff email address first.');
+    return;
+  }
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    alert('Password reset instructions have been sent if this account exists.');
+  } catch (error) {
+    console.error('Password reset request failed:', error);
+    showErr(error?.message || 'Could not send password reset email.');
   }
 }
 
