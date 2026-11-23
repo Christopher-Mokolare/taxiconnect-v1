@@ -129,7 +129,7 @@ let myTaxiId = null, myCapacity = 14;
 // ── Auth ──────────────────────────────────────────────────────────
 let driverName = '';
 
-firebase.auth().signInAnonymously().catch(() => {});
+// Preserve the custom-token driver identity; anonymous sign-in would replace role claims.
 
 async function pinLogin() {
   const name = document.getElementById('nameInput').value.trim();
@@ -182,17 +182,31 @@ function signOut() {
 
 function showErr(m) { const e = document.getElementById('authError'); e.textContent = m; e.style.display = 'block'; }
 
-// Auto-login if session still active
-const _savedRole = sessionStorage.getItem('tc_role');
-if (_savedRole === 'driver') {
-  driverName = sessionStorage.getItem('tc_name') || 'Driver';
-  firebase.auth().signInAnonymously().then(() => {
+// Restore only a persisted Firebase custom-token session with driver claims.
+firebase.auth().onAuthStateChanged(async user => {
+  if (sessionStorage.getItem('tc_role') !== 'driver') return;
+  if (!user) {
+    sessionStorage.removeItem('tc_role');
+    sessionStorage.removeItem('tc_name');
+    show('authScreen');
+    return;
+  }
+  try {
+    const token = await user.getIdTokenResult();
+    if (token.claims.isDriver !== true) throw new Error('Driver role claim missing');
+    driverName = sessionStorage.getItem('tc_name') || user.displayName || 'Driver';
     document.getElementById('signOutBtn').style.display = 'block';
     show('appScreen');
     requestNotificationPermission();
     listenForSummons();
-  });
-}
+  } catch (error) {
+    console.error('Driver session restore failed:', error);
+    await firebase.auth().signOut();
+    sessionStorage.removeItem('tc_role');
+    sessionStorage.removeItem('tc_name');
+    show('authScreen');
+  }
+});
 
 // ── Summon listener ───────────────────────────────────────────────
 function listenForSummons() {
