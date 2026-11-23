@@ -31,10 +31,11 @@ Staff roles are assigned with the Admin SDK provisioning utility in `functions/s
 - `tests/app.test.js` — Node smoke tests for routes, auth wiring and database security boundaries.
 - `scripts/test-database-rules.js` — Firebase Realtime Database Emulator authorization tests.
 - `functions/scripts/provision-staff.js` — local Admin SDK utility for assigning staff roles.
+- `functions/scripts/seed-test-data.js` — guarded Admin SDK utility that creates fake staff accounts and sample taxis in the development project only.
 - `archive/flutter-app/` and `backup_*/` — historical source retained for reference, not part of the active web deployment.
 
 ## Getting started
 
 Follow [DEPLOYMENT.md](DEPLOYMENT.md) to configure Firebase, enable the required Authentication providers, provision staff roles and deploy Hosting plus Realtime Database rules. The guarded deployment command is `bash scripts/deploy.sh`.
 
-**Release status:** the application code and CI validation are implemented. The actual Firebase Web App configuration, staff accounts, role claims, deployed rules and live end-to-end acceptance still need to be completed in the Firebase project.
+**Development setup:** the TaxiConnect-Dev Web App configuration is committed and Anonymous plus Email/Password Authentication have been enabled. The remaining development gates are test staff account provisioning, role claims, publishing and verifying Realtime Database rules, and live end-to-end acceptance. No production release is claimed.
