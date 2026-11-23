@@ -20,6 +20,14 @@ The repository is configured for Firebase project ID `taxiconnect-dev` in `.fire
 6. Assign each staff account its server-side role using the provisioning utility below.
 7. Configure Firebase CLI access for the intended project and verify the selected project with `firebase use`.
 
+## Automated development deployment
+
+The repository includes `.github/workflows/deploy-dev.yml`. A push to `feat/v1-product-completion` runs the validation suite first, then deploys only Firebase Hosting and Realtime Database rules to the hard-coded project `taxiconnect-dev`. Cloud Functions are not deployed and the workflow cannot target production.
+
+Before the first deployment, add the repository Actions secret `FIREBASE_SERVICE_ACCOUNT_TAXICONNECT_DEV` containing a service-account JSON key whose `project_id` is exactly `taxiconnect-dev`. The workflow validates that project ID before authentication and deployment. Do not commit the JSON key or paste it into chat. If the secret is absent or belongs to another project, the workflow stops before deployment.
+
+After the secret is configured, push a commit to `feat/v1-product-completion`. The workflow validates configuration, runs smoke tests and Realtime Database emulator tests, then publishes Hosting and database rules. Check the Actions run summary before opening https://taxiconnect-dev.web.app/.
+
 ## Run the test-data seeder from GitHub Actions
 
 The repository includes a manual workflow at `.github/workflows/seed-test-data.yml`. It is restricted to `taxiconnect-dev`, requires an explicit `yes` confirmation, and never prints the test password or service-account JSON.
