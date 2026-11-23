@@ -98,6 +98,7 @@
     </div>
     <button class="btn btn-primary" id="waitBtn" onclick="sendSignal()">📢 I'M WAITING — Alert Conductor</button>
     <button class="btn btn-grey" id="cancelBtn" onclick="cancelWaiting()" style="display:none">✖ Cancel Signal</button>
+    <div id="waitStatus" class="alert a-success" style="display:none;margin-top:10px" role="status" aria-live="polite"></div>
   </div>
 </div>
 
@@ -258,10 +259,40 @@ async function cancelWaiting() {
     if (myWaitRef) myWaitRef.off('value');
     myWaitRef = null;
     syncWaitControls();
+    renderWaitStatus(null);
   } catch (error) {
     console.error('cancelWaiting failed:', error);
     alert(error?.message || 'Could not cancel waiting signal.');
   }
+}
+
+async function renderWaitStatus(record) {
+  const el = document.getElementById('waitStatus');
+  if (!record) {
+    el.style.display = 'none';
+    el.textContent = '';
+    return;
+  }
+  el.style.display = 'block';
+  if (record.status === 'assigned' && record.assignedTaxiId) {
+    el.textContent = 'A taxi has been assigned. Loading driver details…';
+    try {
+      const taxiSnap = await db.ref('taxis/' + record.assignedTaxiId).once('value');
+      const taxi = taxiSnap.val();
+      if (taxi) {
+        el.textContent = '🚕 Taxi assigned: ' + (taxi.driverName || 'Driver') +
+          ' · ' + routeLabel(taxi.route) + ' · ' +
+          Math.max(0, Number(taxi.capacity || 0) - Number(taxi.passengersOnboard || 0)) + ' seats available.';
+      } else {
+        el.textContent = 'A taxi was assigned, but it is no longer active. Please contact the conductor.';
+      }
+    } catch (error) {
+      console.error('Could not load assigned taxi:', error);
+      el.textContent = 'A taxi has been assigned. Please keep this page open for updates.';
+    }
+    return;
+  }
+  el.textContent = '📢 Your waiting signal is active. The conductor can see your request.';
 }
 
 function syncWaitControls() {
@@ -277,14 +308,17 @@ function watchMyWaitingSignal() {
 
   const watchedId = myWaitId;
   myWaitRef = db.ref('waitingPassengers/' + watchedId);
-  myWaitRef.on('value', snapshot => {
+  myWaitRef.on('value', async snapshot => {
     const record = snapshot.val();
     if (!record || record.passengerId !== user.uid) {
       if (myWaitId === watchedId) myWaitId = null;
       syncWaitControls();
+      renderWaitStatus(null);
       if (myWaitRef) myWaitRef.off('value');
       myWaitRef = null;
+      return;
     }
+    await renderWaitStatus(record);
   });
 }
 
