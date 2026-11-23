@@ -58,6 +58,19 @@ test("all role pages load shared helpers and Firebase configuration", () => {
   }
 });
 
+test("staff authentication requires individual Firebase accounts and server role claims", () => {
+  const backend = read("functions/index.js");
+  const conductor = read("public/conductor.html");
+  const driver = read("public/driver.html");
+  const provisioner = read("functions/scripts/provision-staff.js");
+  assert.match(conductor, /signInWithEmailAndPassword/);
+  assert.match(driver, /signInWithEmailAndPassword/);
+  assert.match(conductor, /claims\.isConductor !== true/);
+  assert.match(driver, /claims\.isDriver !== true/);
+  assert.match(provisioner, /setCustomUserClaims/);
+  assert.doesNotMatch(backend, /loginWithPin|DRIVER_PIN|CONDUCTOR_PIN/);
+});
+
 test("unsafe or removed administrative endpoints are not exposed", () => {
   const backend = read("functions/index.js");
   const conductor = read("public/conductor.html");
