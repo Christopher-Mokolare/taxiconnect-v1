@@ -291,10 +291,15 @@ function renderWaiting() {
   const entries = Object.entries(allWaiting);
   if (!entries.length) { el.innerHTML = '<div class="empty">No passengers waiting.</div>'; return; }
   el.innerHTML = entries.map(([id,w]) => {
-    const matchingTaxis = Object.entries(allTaxis).filter(([,taxi]) =>
-      taxi.route === w.route && taxi.status !== 'breakdown' &&
-      Number(taxi.passengersOnboard || 0) < Number(taxi.capacity || 14)
-    );
+    const matchingTaxis = Object.entries(allTaxis).filter(([taxiId,taxi]) => {
+      const alreadyAssigned = Object.values(allWaiting)
+        .filter(passenger => passenger.assignedTaxiId === taxiId)
+        .reduce((total, passenger) => total + Number(passenger.groupSize || 1), 0);
+      const freeSeats = Number(taxi.capacity || 14) -
+        Number(taxi.passengersOnboard || 0) - alreadyAssigned;
+      return taxi.route === w.route && taxi.status !== 'breakdown' &&
+        freeSeats >= Number(w.groupSize || 1);
+    });
     const assignment = w.status === 'assigned'
       ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Taxi assigned</div>'
       : matchingTaxis.length
@@ -397,9 +402,15 @@ async function assignTaxi(waitId) {
 
     const taxiSnap = await db.ref('taxis/' + taxiId).once('value');
     const taxi = taxiSnap.val();
+    const assignedSeats = Object.values(allWaiting)
+      .filter(item => item.assignedTaxiId === taxiId && item.status === 'assigned')
+      .reduce((total, item) => total + Number(item.groupSize || 1), 0);
+    const freeSeats = taxi
+      ? Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0) - assignedSeats
+      : 0;
     if (!taxi || taxi.route !== passenger.route || taxi.status === 'breakdown' ||
-        Number(taxi.passengersOnboard || 0) >= Number(taxi.capacity || 14)) {
-      throw new Error('That taxi is no longer available. Refresh and choose another.');
+        freeSeats < Number(passenger.groupSize || 1)) {
+      throw new Error('That taxi does not have enough unreserved seats. Refresh and choose another.');
     }
 
     await passengerRef.update({
