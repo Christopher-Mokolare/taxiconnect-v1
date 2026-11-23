@@ -56,7 +56,7 @@
     },
     "drivers": {
       "$driverId": {
-        ".read": "auth != null",
+        ".read": "auth != null && (auth.uid === $driverId || auth.token.isConductor === true)",
         ".write": "auth != null && (auth.token.isConductor === true || (auth.token.isDriver === true && auth.uid === $driverId))",
         ".validate": "!newData.exists() || (newData.hasChildren(['displayName','lastSeen']) && newData.child('displayName').isString() && newData.child('lastSeen').isNumber() && newData.child('lastSeen').val() <= now + 5000 && newData.child('lastSeen').val() >= now - 60000)"
       }
