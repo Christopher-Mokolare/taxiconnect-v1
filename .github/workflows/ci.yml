@@ -33,11 +33,11 @@ jobs:
           cache: npm
           cache-dependency-path: functions/package-lock.json
 
-      - name: Install Cloud Functions dependencies
+      - name: Install Firebase Admin tooling dependencies
         run: npm ci
         working-directory: functions
 
-      - name: Check Cloud Functions syntax
+      - name: Check administrative provisioning and retained backend syntax
         run: npm run check
         working-directory: functions
 
