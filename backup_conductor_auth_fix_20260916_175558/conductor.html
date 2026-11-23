@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TaxiConnect — Conductor</title>
+
+  <!-- Firebase retained temporarily for rollback compatibility only. -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"
+          integrity="sha384-sEVIly94UBRLKWdkYoPpSG7GD/e79YHMrxVyZaOk712Ga7+EAw6w1EFi+xBzBdd+"
+          crossorigin="anonymous"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"
+          integrity="sha384-EkqK+ezBWJuvO3hfrSx2iVqr3YQbhmnzn8kPhOpBZ+0GMVU5oGSgptwIu8D84HjE"
+          crossorigin="anonymous"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"
+          integrity="sha384-1/m+A1jVWbD3yiK3/vtFvm1+LjK1WLpSoDY+Kaxppwn/yP9BVSgdHTNQVOjrzUO5"
+          crossorigin="anonymous"></script>
+  <script src="/firebase-config.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f6f8;
+      color: #17202a;
+    }
+
+    header {
+      background: #111827;
+      color: white;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      padding: 14px;
+      border-radius: 10px;
+      background: #f1f5f9;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 24px;
+      margin-top: 4px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    input,
+    select,
+    button {
+      width: 100%;
+      min-height: 42px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      padding: 9px 11px;
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      background: #111827;
+      color: white;
+      border: none;
+      font-weight: 600;
+    }
+
+    button.secondary {
+      background: #475569;
+    }
+
+    button.danger {
+      background: #b91c1c;
+    }
+
+    button.warning {
+      background: #b45309;
+    }
+
+    button.success {
+      background: #047857;
+    }
+
+    button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .actions button {
+      width: auto;
+      min-width: 110px;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .tabs button {
+      background: #e2e8f0;
+      color: #17202a;
+    }
+
+    .tabs button.active {
+      background: #111827;
+      color: white;
+    }
+
+    .tab {
+      display: none;
+    }
+
+    .tab.active {
+      display: block;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .row:last-child {
+      border-bottom: 0;
+    }
+
+    .muted {
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .badge.good {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge.warn {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge.bad {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .error {
+      color: #b91c1c;
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+
+    .success-message {
+      color: #047857;
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .login {
+      max-width: 420px;
+      margin: 70px auto;
+    }
+
+    .line-position {
+      width: 34px;
+      height: 34px;
+      min-height: 34px;
+      padding: 0;
+      border-radius: 50%;
+      background: #e2e8f0;
+      color: #111827;
+      flex: 0 0 auto;
+    }
+
+    .taxi-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .taxi-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .taxi-actions button {
+      width: auto;
+      min-height: 34px;
+      padding: 6px 9px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .tabs {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .row {
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>🎛 TaxiConnect — Conductor</h1>
+  <button id="signOutBtn"
+          class="secondary"
+          style="display:none;width:auto"
+          onclick="signOut()">Sign out</button>
+</header>
+
+<main>
+
+  <!-- LOGIN -->
+  <section id="loginScreen" class="login card">
+    <h2>Conductor Login</h2>
+
+    <label for="nameInput">Name</label>
+    <input id="nameInput"
+           value="Conductor"
+           autocomplete="name">
+
+    <label for="pinInput" style="margin-top:12px">PIN</label>
+    <input id="pinInput"
+           type="password"
+           inputmode="numeric"
+           autocomplete="current-password">
+
+    <button onclick="pinLogin()" style="margin-top:12px">
+      Sign in
+    </button>
+
+    <div id="authError" class="error"></div>
+  </section>
+
+  <!-- APP -->
+  <section id="appScreen" class="hidden">
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label for="operatorSelect">Operator</label>
+          <select id="operatorSelect" onchange="operatorChanged()"></select>
+        </div>
+
+        <div>
+          <label for="routeSelect">Route</label>
+          <select id="routeSelect" onchange="routeChanged()"></select>
+        </div>
+      </div>
+
+      <div id="contextMessage" class="muted" style="margin-top:10px"></div>
+    </div>
+
+    <div class="tabs">
+      <button class="active" onclick="switchTab('overview', this)">Overview</button>
+      <button onclick="switchTab('line', this)">Loading Line</button>
+      <button onclick="switchTab('taxis', this)">Taxis</button>
+      <button onclick="switchTab('demand', this)">Demand</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <section id="tab-overview" class="tab active">
+
+      <div class="card">
+        <h2>Today's Operations</h2>
+
+        <div class="grid">
+          <div class="stat">
+            Active taxis
+            <strong id="statTaxis">0</strong>
+          </div>
+
+          <div class="stat">
+            Active trips
+            <strong id="statTrips">0</strong>
+          </div>
+
+          <div class="stat">
+            Waiting passengers
+            <strong id="statWaiting">0</strong>
+          </div>
+
+          <div class="stat">
+            Active demand
+            <strong id="statDemand">0</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Daily Loading Line</h2>
+
+        <div id="lineSummary" class="muted">
+          No loading line loaded.
+        </div>
+
+        <div class="actions" style="margin-top:12px">
+          <button class="success" onclick="openLine()">
+            Open / Load Line
+          </button>
+          <button class="secondary" onclick="refreshAll()">
+            Refresh
+          </button>
+        </div>
+
+        <div id="lineMessage"></div>
+      </div>
+
+      <div class="card">
+        <h2>Summon Drivers</h2>
+
+        <label for="summonCount">Passengers required</label>
+        <input id="summonCount"
+               type="number"
+               min="1"
+               max="100"
+               value="1">
+
+        <div class="actions" style="margin-top:10px">
+          <button class="warning" onclick="summonRoute()">
+            Summon Route
+          </button>
+        </div>
+
+        <div id="summonMessage"></div>
+      </div>
+
+    </section>
+
+    <!-- LINE -->
+    <section id="tab-line" class="tab">
+
+      <div class="card">
+        <h2>Loading Line</h2>
+
+        <div id="lineDetail" class="muted">
+          No line selected.
+        </div>
+
+        <div class="grid" style="margin-top:12px">
+          <div>
+            <label for="addTaxiSelect">Add taxi</label>
+            <select id="addTaxiSelect"></select>
+          </div>
+
+          <div style="display:flex;align-items:end">
+            <button class="success" onclick="addTaxiToLine()">
+              Add Taxi
+            </button>
+          </div>
+        </div>
+
+        <div id="lineEntries" style="margin-top:14px"></div>
+
+        <div id="lineMessage2"></div>
+      </div>
+
+    </section>
+
+    <!-- TAXIS -->
+    <section id="tab-taxis" class="tab">
+
+      <div class="card">
+        <h2>Operator Taxis</h2>
+
+        <div id="taxiList">
+          <div class="muted">Loading taxis...</div>
+        </div>
+
+        <div id="taxiMessage"></div>
+      </div>
+
+    </section>
+
+    <!-- DEMAND -->
+    <section id="tab-demand" class="tab">
+
+      <div class="card">
+        <h2>Passenger Demand</h2>
+
+        <div id="demandSummary">
+          <div class="muted">Loading demand...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Waiting Passengers</h2>
+
+        <div id="waitingList">
+          <div class="muted">Loading waiting passengers...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Demand Signals</h2>
+
+        <div id="signalList">
+          <div class="muted">Loading demand signals...</div>
+        </div>
+      </div>
+
+    </section>
+
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const API_BASE = "/api";
+
+let currentUser = null;
+let memberships = [];
+let routes = [];
+let selectedOperatorId = null;
+let selectedRouteId = null;
+let currentLine = null;
+let currentTaxis = [];
+let currentDemand = {
+  waiting: [],
+  demandSignals: []
+};
+
+function $(id) {
+  return document.getElementById(id);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+async function api(path, options = {}) {
+  const response = await fetch(API_BASE + path, {
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    ...options
+  });
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error ||
+      data?.message ||
+      `Request failed (${response.status})`
+    );
+  }
+
+  return data;
+}
+
+function showMessage(id, message, type = "error") {
+  const el = $(id);
+
+  if (!el) return;
+
+  el.className =
+    type === "success"
+      ? "success-message"
+      : type === "muted"
+        ? "muted"
+        : "error";
+
+  el.textContent = message || "";
+}
+
+async function pinLogin() {
+  const name = $("nameInput").value.trim() || "Conductor";
+  const pin = $("pinInput").value.trim();
+
+  showMessage("authError", "");
+
+  if (!pin) {
+    showMessage("authError", "Enter your PIN.");
+    return;
+  }
+
+  try {
+    const result = await api("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        role: "conductor",
+        name,
+        pin
+      })
+    });
+
+    currentUser = result.user;
+    memberships = result.memberships || [];
+
+    sessionStorage.setItem("tc_role", currentUser.role);
+    sessionStorage.setItem("tc_name", currentUser.name || name);
+
+    $("loginScreen").classList.add("hidden");
+    $("appScreen").classList.remove("hidden");
+    $("signOutBtn").style.display = "block";
+
+    renderOperators();
+
+    if (!memberships.length) {
+      showMessage(
+        "contextMessage",
+        "No active operator membership is available for this account."
+      );
+      return;
+    }
+
+    selectedOperatorId = memberships[0].operator_id;
+
+    renderOperators();
+    await loadRoutes();
+    await refreshAll();
+
+  } catch (err) {
+    showMessage("authError", err.message || "Login failed.");
+  }
+}
+
+async function signOut() {
+  try {
+    await api("/auth/logout", {
+      method: "POST"
+    });
+  } catch {
+    // Local session can still be cleared if the server logout request fails.
+  }
+
+  currentUser = null;
+  memberships = [];
+  routes = [];
+  currentLine = null;
+  currentTaxis = [];
+  currentDemand = {
+    waiting: [],
+    demandSignals: []
+  };
+
+  sessionStorage.removeItem("tc_role");
+  sessionStorage.removeItem("tc_name");
+
+  $("appScreen").classList.add("hidden");
+  $("loginScreen").classList.remove("hidden");
+  $("signOutBtn").style.display = "none";
+  $("pinInput").value = "";
+}
+
+function renderOperators() {
+  const select = $("operatorSelect");
+
+  select.innerHTML = memberships.map(m => `
+    <option value="${escapeHtml(m.operator_id)}">
+      ${escapeHtml(m.operator_name)}
+    </option>
+  `).join("");
+
+  if (selectedOperatorId) {
+    select.value = selectedOperatorId;
+  }
+}
+
+async function operatorChanged() {
+  selectedOperatorId = $("operatorSelect").value || null;
+
+  selectedRouteId = null;
+  currentLine = null;
+  currentTaxis = [];
+  currentDemand = {
+    waiting: [],
+    demandSignals: []
+  };
+
+  await loadRoutes();
+  await refreshAll();
+}
+
+async function loadRoutes() {
+  try {
+    const result = await api("/routes");
+    routes = result.routes || [];
+
+    renderRoutes();
+
+    if (!selectedRouteId && routes.length) {
+      selectedRouteId = routes[0].id;
+      $("routeSelect").value = selectedRouteId;
+    }
+
+  } catch (err) {
+    showMessage(
+      "contextMessage",
+      "Unable to load routes: " + err.message
+    );
+  }
+}
+
+function renderRoutes() {
+  const select = $("routeSelect");
+
+  select.innerHTML = routes.map(route => `
+    <option value="${escapeHtml(route.id)}">
+      ${escapeHtml(
+        route.name ||
+        `${route.origin || ""} → ${route.destination || ""}`
+      )}
+    </option>
+  `).join("");
+
+  if (selectedRouteId && routes.some(r => r.id === selectedRouteId)) {
+    select.value = selectedRouteId;
+  }
+}
+
+async function routeChanged() {
+  selectedRouteId = $("routeSelect").value || null;
+  await refreshAll();
+}
+
+async function refreshAll() {
+  if (!selectedOperatorId || !selectedRouteId) {
+    renderEmptyState();
+    return;
+  }
+
+  const route = routes.find(r => r.id === selectedRouteId);
+  const membership = memberships.find(
+    m => m.operator_id === selectedOperatorId
+  );
+
+  $("contextMessage").textContent =
+    `${membership?.operator_name || selectedOperatorId} • ` +
+    `${route?.name || selectedRouteId}`;
+
+  await Promise.all([
+    loadLine(),
+    loadTaxis(),
+    loadDemand(),
+    loadStats()
+  ]);
+
+  renderAll();
+}
+
+async function loadLine() {
+  try {
+    const result = await api(
+      `/conductor/line?operatorId=${encodeURIComponent(selectedOperatorId)}` +
+      `&routeId=${encodeURIComponent(selectedRouteId)}`
+    );
+
+    currentLine = result.line || null;
+
+  } catch (err) {
+    currentLine = null;
+    showMessage("lineMessage", err.message);
+  }
+}
+
+async function openLine() {
+  if (!selectedOperatorId || !selectedRouteId) {
+    showMessage("lineMessage", "Select an operator and route first.");
+    return;
+  }
+
+  try {
+    const result = await api("/conductor/line/open", {
+      method: "POST",
+      body: JSON.stringify({
+        operatorId: selectedOperatorId,
+        routeId: selectedRouteId
+      })
+    });
+
+    currentLine = result.line;
+
+    renderAll();
+
+    showMessage(
+      "lineMessage",
+      result.existing
+        ? "Today's loading line is already open."
+        : "Today's loading line has been opened.",
+      "success"
+    );
+
+  } catch (err) {
+    showMessage("lineMessage", err.message);
+  }
+}
+
+async function loadTaxis() {
+  try {
+    const result = await api(
+      `/conductor/taxis?operatorId=${encodeURIComponent(selectedOperatorId)}` +
+      `&routeId=${encodeURIComponent(selectedRouteId)}`
+    );
+
+    currentTaxis = result.taxis || [];
+
+  } catch (err) {
+    currentTaxis = [];
+    showMessage("taxiMessage", err.message);
+  }
+}
+
+async function loadDemand() {
+  try {
+    const result = await api(
+      `/conductor/demand?operatorId=${encodeURIComponent(selectedOperatorId)}` +
+      `&routeId=${encodeURIComponent(selectedRouteId)}`
+    );
+
+    currentDemand = {
+      waiting: result.waiting || [],
+      demandSignals: result.demandSignals || []
+    };
+
+  } catch (err) {
+    currentDemand = {
+      waiting: [],
+      demandSignals: []
+    };
+
+    showMessage("demandSummary", err.message);
+  }
+}
+
+async function loadStats() {
+  try {
+    const result = await api(
+      `/conductor/stats?operatorId=${encodeURIComponent(selectedOperatorId)}`
+    );
+
+    $("statTaxis").textContent = result.activeTaxis ?? 0;
+    $("statTrips").textContent = result.activeTrips ?? 0;
+    $("statWaiting").textContent = result.waitingPassengers ?? 0;
+    $("statDemand").textContent = result.activeDemand ?? 0;
+
+  } catch {
+    $("statTaxis").textContent = "—";
+    $("statTrips").textContent = "—";
+    $("statWaiting").textContent = "—";
+    $("statDemand").textContent = "—";
+  }
+}
+
+function renderAll() {
+  renderLine();
+  renderTaxiSelector();
+  renderTaxis();
+  renderDemand();
+}
+
+function renderLine() {
+  if (!currentLine) {
+    $("lineSummary").innerHTML =
+      '<span class="badge warn">NOT OPEN</span>';
+
+    $("lineDetail").textContent =
+      "No loading line is open for this route today.";
+
+    $("lineEntries").innerHTML = "";
+    return;
+  }
+
+  $("lineSummary").innerHTML = `
+    <span class="badge good">${escapeHtml(currentLine.status)}</span>
+    ${escapeHtml(currentLine.route_name || "")}
+    • ${escapeHtml(currentLine.service_date || "")}
+    • ${currentLine.entries?.length || 0} taxi(s)
+  `;
+
+  $("lineDetail").innerHTML = `
+    <div>
+      <strong>${escapeHtml(currentLine.route_name || "")}</strong>
+    </div>
+    <div class="muted">
+      ${escapeHtml(currentLine.origin || "")}
+      →
+      ${escapeHtml(currentLine.destination || "")}
+      • ${escapeHtml(currentLine.service_mode || "")}
+    </div>
+  `;
+
+  const entries = currentLine.entries || [];
+
+  if (!entries.length) {
+    $("lineEntries").innerHTML =
+      '<div class="muted">No taxis are currently in the loading line.</div>';
+    return;
+  }
+
+  $("lineEntries").innerHTML = entries.map((entry, index) => `
+    <div class="row">
+      <button class="line-position"
+              title="Move taxi up"
+              onclick="moveLineEntry('${escapeHtml(entry.taxi_id)}', -1)">
+        ${index + 1}
+      </button>
+
+      <div class="taxi-info">
+        <strong>
+          ${escapeHtml(entry.vehicle_registration_number || entry.taxi_id)}
+        </strong>
+
+        <div class="muted">
+          ${escapeHtml(entry.driver_name || "No driver assigned")}
+          •
+          ${escapeHtml(entry.capacity || "")} seats
+        </div>
+
+        <span class="badge ${entry.status === "WAITING" ? "good" : "warn"}">
+          ${escapeHtml(entry.status)}
+        </span>
+      </div>
+
+      <div class="taxi-actions">
+        <button class="secondary"
+                onclick="moveLineEntry('${escapeHtml(entry.taxi_id)}', -1)">
+          ↑
+        </button>
+
+        <button class="secondary"
+                onclick="moveLineEntry('${escapeHtml(entry.taxi_id)}', 1)">
+          ↓
+        </button>
+
+        <button class="warning"
+                onclick="replaceLineEntry('${escapeHtml(entry.id)}')">
+          Replace
+        </button>
+
+        <button class="danger"
+                onclick="removeLineEntry('${escapeHtml(entry.id)}')">
+          Remove
+        </button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderTaxiSelector() {
+  const select = $("addTaxiSelect");
+
+  if (!currentLine) {
+    select.innerHTML =
+      '<option value="">Open a loading line first</option>';
+    return;
+  }
+
+  const activeLineTaxiIds = new Set(
+    (currentLine.entries || [])
+      .filter(e => !["REMOVED", "REPLACED", "COMPLETED"].includes(e.status))
+      .map(e => e.taxi_id)
+  );
+
+  const available = currentTaxis.filter(
+    taxi =>
+      taxi.route_authorized &&
+      !activeLineTaxiIds.has(taxi.id)
+  );
+
+  select.innerHTML =
+    '<option value="">Select taxi...</option>' +
+    available.map(taxi => `
+      <option value="${escapeHtml(taxi.id)}">
+        ${escapeHtml(
+          taxi.vehicle_registration_number ||
+          taxi.id
+        )}
+        — ${escapeHtml(taxi.driver_name || "No driver")}
+      </option>
+    `).join("");
+}
+
+async function addTaxiToLine() {
+  const taxiId = $("addTaxiSelect").value;
+
+  if (!currentLine) {
+    showMessage("lineMessage2", "Open a loading line first.");
+    return;
+  }
+
+  if (!taxiId) {
+    showMessage("lineMessage2", "Select a taxi.");
+    return;
+  }
+
+  try {
+    const result = await api("/conductor/line/add", {
+      method: "POST",
+      body: JSON.stringify({
+        lineSessionId: currentLine.id,
+        taxiId
+      })
+    });
+
+    currentLine = result.entry
+      ? {
+          ...currentLine,
+          entries: [
+            ...(currentLine.entries || []).filter(
+              e => e.id !== result.entry.id
+            ),
+            result.entry
+          ]
+        }
+      : currentLine;
+
+    await loadLine();
+    renderAll();
+
+    showMessage(
+      "lineMessage2",
+      result.existing
+        ? "Taxi is already in the loading line."
+        : "Taxi added to the loading line.",
+      "success"
+    );
+
+  } catch (err) {
+    showMessage("lineMessage2", err.message);
+  }
+}
+
+async function removeLineEntry(lineEntryId) {
+  if (!confirm("Remove this taxi from today's loading line?")) {
+    return;
+  }
+
+  try {
+    await api("/conductor/line/remove", {
+      method: "POST",
+      body: JSON.stringify({
+        lineEntryId
+      })
+    });
+
+    await loadLine();
+    await loadStats();
+    renderAll();
+
+    showMessage(
+      "lineMessage2",
+      "Taxi removed from the loading line.",
+      "success"
+    );
+
+  } catch (err) {
+    showMessage("lineMessage2", err.message);
+  }
+}
+
+async function replaceLineEntry(lineEntryId) {
+  const activeIds = new Set(
+    (currentLine?.entries || [])
+      .filter(e => !["REMOVED", "REPLACED", "COMPLETED"].includes(e.status))
+      .map(e => e.taxi_id)
+  );
+
+  const available = currentTaxis.filter(
+    taxi =>
+      taxi.route_authorized &&
+      !activeIds.has(taxi.id)
+  );
+
+  if (!available.length) {
+    showMessage(
+      "lineMessage2",
+      "No other authorized taxi is available for replacement."
+    );
+    return;
+  }
+
+  const options = available
+    .map(
+      (taxi, index) =>
+        `${index + 1}. ${
+          taxi.vehicle_registration_number || taxi.id
+        } — ${taxi.driver_name || "No driver"}`
+    )
+    .join("\n");
+
+  const answer = prompt(
+    "Select replacement taxi by number:\n\n" + options
+  );
+
+  if (!answer) return;
+
+  const index = Number(answer) - 1;
+
+  if (
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= available.length
+  ) {
+    showMessage("lineMessage2", "Invalid replacement selection.");
+    return;
+  }
+
+  try {
+    await api("/conductor/line/replace", {
+      method: "POST",
+      body: JSON.stringify({
+        lineEntryId,
+        replacementTaxiId: available[index].id
+      })
+    });
+
+    await loadLine();
+    renderAll();
+
+    showMessage(
+      "lineMessage2",
+      "Taxi replaced successfully.",
+      "success"
+    );
+
+  } catch (err) {
+    showMessage("lineMessage2", err.message);
+  }
+}
+
+async function moveLineEntry(taxiId, direction) {
+  if (!currentLine) return;
+
+  const entries = (currentLine.entries || [])
+    .filter(e => !["REMOVED", "REPLACED", "COMPLETED"].includes(e.status))
+    .sort((a, b) => a.position - b.position);
+
+  const index = entries.findIndex(e => e.taxi_id === taxiId);
+
+  if (index < 0) return;
+
+  const target = index + direction;
+
+  if (target < 0 || target >= entries.length) {
+    return;
+  }
+
+  const taxiIds = entries.map(e => e.taxi_id);
+
+  [
+    taxiIds[index],
+    taxiIds[target]
+  ] = [
+    taxiIds[target],
+    taxiIds[index]
+  ];
+
+  try {
+    const result = await api("/conductor/line/reorder", {
+      method: "POST",
+      body: JSON.stringify({
+        lineSessionId: currentLine.id,
+        taxiIds
+      })
+    });
+
+    currentLine = result.line;
+    renderAll();
+
+  } catch (err) {
+    showMessage("lineMessage2", err.message);
+  }
+}
+
+function renderTaxis() {
+  const el = $("taxiList");
+
+  if (!currentTaxis.length) {
+    el.innerHTML =
+      '<div class="muted">No active taxis found for this operator.</div>';
+    return;
+  }
+
+  el.innerHTML = currentTaxis.map(taxi => {
+    const statusClass =
+      taxi.status === "OFFLINE"
+        ? ""
+        : taxi.status === "breakdown"
+          ? "bad"
+          : "good";
+
+    return `
+      <div class="row">
+        <div class="taxi-info">
+          <strong>
+            ${escapeHtml(
+              taxi.vehicle_registration_number || taxi.id
+            )}
+          </strong>
+
+          <div class="muted">
+            ${escapeHtml(taxi.driver_name || "No driver")}
+            •
+            ${escapeHtml(taxi.capacity || 0)} seats
+            •
+            ${escapeHtml(taxi.passengers_onboard || 0)} onboard
+          </div>
+
+          <span class="badge ${statusClass}">
+            ${escapeHtml(taxi.status)}
+          </span>
+
+          ${
+            taxi.route_authorized
+              ? '<span class="badge good">ROUTE AUTHORIZED</span>'
+              : '<span class="badge warn">NOT AUTHORIZED</span>'
+          }
+        </div>
+
+        ${
+          currentLine && taxi.route_authorized
+            ? `
+              <button
+                class="success"
+                style="width:auto"
+                onclick="quickAddTaxi('${escapeHtml(taxi.id)}')">
+                Add
+              </button>
+            `
+            : ""
+        }
+      </div>
+    `;
+  }).join("");
+}
+
+async function quickAddTaxi(taxiId) {
+  $("addTaxiSelect").value = taxiId;
+  await addTaxiToLine();
+}
+
+function renderDemand() {
+  const waiting = currentDemand.waiting || [];
+  const signals = currentDemand.demandSignals || [];
+
+  $("demandSummary").innerHTML = `
+    <div class="grid">
+      <div class="stat">
+        Waiting groups
+        <strong>${waiting.length}</strong>
+      </div>
+
+      <div class="stat">
+        Waiting passengers
+        <strong>
+          ${waiting.reduce(
+            (sum, item) => sum + Number(item.group_size || 1),
+            0
+          )}
+        </strong>
+      </div>
+
+      <div class="stat">
+        Demand signals
+        <strong>${signals.length}</strong>
+      </div>
+
+      <div class="stat">
+        Signalled passengers
+        <strong>
+          ${signals.reduce(
+            (sum, item) => sum + Number(item.group_size || 1),
+            0
+          )}
+        </strong>
+      </div>
+    </div>
+  `;
+
+  if (!waiting.length) {
+    $("waitingList").innerHTML =
+      '<div class="muted">No waiting passengers for this route.</div>';
+  } else {
+    $("waitingList").innerHTML = waiting.map(item => `
+      <div class="row">
+        <div>
+          <strong>
+            ${escapeHtml(item.passenger_name || "Passenger")}
+          </strong>
+
+          <div class="muted">
+            Group: ${escapeHtml(item.group_size || 1)}
+            ${
+              item.pickup_point_name
+                ? ` • Pickup: ${escapeHtml(item.pickup_point_name)}`
+                : ""
+            }
+          </div>
+        </div>
+
+        <span class="badge ${item.status === "WAITING" ? "warn" : "good"}">
+          ${escapeHtml(item.status)}
+        </span>
+      </div>
+    `).join("");
+  }
+
+  if (!signals.length) {
+    $("signalList").innerHTML =
+      '<div class="muted">No active demand signals for this route.</div>';
+  } else {
+    $("signalList").innerHTML = signals.map(item => `
+      <div class="row">
+        <div>
+          <strong>
+            ${escapeHtml(item.signal_type || "DEMAND")}
+          </strong>
+
+          <div class="muted">
+            Group: ${escapeHtml(item.group_size || 1)}
+            ${
+              item.pickup_point_name
+                ? ` • Pickup: ${escapeHtml(item.pickup_point_name)}`
+                : ""
+            }
+          </div>
+        </div>
+
+        <span class="badge good">
+          ${escapeHtml(item.status)}
+        </span>
+      </div>
+    `).join("");
+  }
+}
+
+async function summonRoute() {
+  const passengerCount =
+    Number($("summonCount").value || 1);
+
+  if (!selectedOperatorId || !selectedRouteId) {
+    showMessage(
+      "summonMessage",
+      "Select an operator and route first."
+    );
+    return;
+  }
+
+  try {
+    const result = await api("/conductor/summon", {
+      method: "POST",
+      body: JSON.stringify({
+        operatorId: selectedOperatorId,
+        routeId: selectedRouteId,
+        requestType: "ROUTE_DEMAND",
+        passengerCount
+      })
+    });
+
+    showMessage(
+      "summonMessage",
+      `Summon created: ${result.summon?.id || "pending"}`,
+      "success"
+    );
+
+  } catch (err) {
+    showMessage("summonMessage", err.message);
+  }
+}
+
+function renderEmptyState() {
+  $("statTaxis").textContent = "0";
+  $("statTrips").textContent = "0";
+  $("statWaiting").textContent = "0";
+  $("statDemand").textContent = "0";
+
+  $("lineSummary").textContent =
+    "Select an operator and route.";
+
+  $("lineDetail").textContent =
+    "Select an operator and route.";
+
+  $("lineEntries").innerHTML = "";
+  $("taxiList").innerHTML = "";
+  $("demandSummary").innerHTML = "";
+  $("waitingList").innerHTML = "";
+  $("signalList").innerHTML = "";
+}
+
+function switchTab(name, button) {
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.classList.remove("active");
+  });
+
+  document.querySelectorAll(".tabs button").forEach(btn => {
+    btn.classList.remove("active");
+  });
+
+  const target = $("tab-" + name);
+
+  if (target) {
+    target.classList.add("active");
+  }
+
+  if (button) {
+    button.classList.add("active");
+  }
+}
+
+$("pinInput").addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    pinLogin();
+  }
+});
+</script>
+
+</body>
+</html>

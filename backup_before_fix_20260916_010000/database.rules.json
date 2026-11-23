@@ -1,0 +1,84 @@
+{
+  "rules": {
+    "taxis": {
+      ".indexOn": ["route", "status", "driverId"],
+      ".read": "auth != null",
+      "$taxiId": {
+        ".write": "auth != null && (auth.token.isConductor === true || (auth.token.isDriver === true && newData.child('driverId').val() === auth.uid))",
+        ".validate": "newData.hasChildren(['driverId','driverName','route','capacity','passengersOnboard','status','lastUpdated']) && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('capacity').isNumber() && newData.child('capacity').val() >= 1 && newData.child('capacity').val() <= 22 && newData.child('passengersOnboard').isNumber() && newData.child('passengersOnboard').val() >= 0 && newData.child('passengersOnboard').val() <= newData.child('capacity').val() && newData.child('status').val().matches(/^(loading|full|departed|breakdown)$/)"
+      }
+    },
+    "waitingPassengers": {
+      ".indexOn": ["route", "timestamp", "passengerId"],
+      ".read": "auth != null",
+      "$waitId": {
+        ".write": "auth != null && (auth.token.isConductor === true || (!data.exists() && newData.child('passengerId').val() === auth.uid) || (data.exists() && data.child('passengerId').val() === auth.uid))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['route','groupSize','timestamp','passengerId']) && newData.child('passengerId').val() === auth.uid && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('groupSize').isNumber() && newData.child('groupSize').val() >= 1 && newData.child('groupSize').val() <= 10)"
+      }
+    },
+    "summons": {
+      ".read": "auth != null",
+      "$route": {
+        ".write": "auth != null && auth.token.isConductor === true",
+        ".validate": "newData.hasChildren(['count','timestamp','conductorId'])"
+      }
+    },
+    "summonRequests": {
+      ".read": "auth != null && (auth.token.isConductor === true || auth.token.isDriver === true)",
+      ".write": "auth != null && (auth.token.isConductor === true || auth.token.isDriver === true)"
+    },
+    "demandHeatmap": {
+      ".read": "auth != null",
+      "$route": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['count','lastUpdated']) && newData.child('count').isNumber()"
+      }
+    },
+    "history": {
+      ".read": "auth.token.isConductor === true",
+      ".write": false
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.isConductor === true)",
+        ".write": "auth.token.isConductor === true || auth.uid === $uid"
+      }
+    },
+    "conductors": {
+      "$conductorId": {
+        ".read": "auth != null && auth.token.isConductor === true",
+        ".write": "auth != null && auth.uid === $conductorId"
+      }
+    },
+    "drivers": {
+      "$driverId": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $driverId"
+      }
+    },
+    "activeViewers": {
+      ".read": "auth != null",
+      "$taxiId": {
+        ".write": "auth != null",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isBoolean()"
+        }
+      }
+    },
+    "announcements": {
+      ".read": "auth != null",
+      ".indexOn": ["village", "expires"],
+      "$announcementId": {
+        ".write": "auth != null && auth.token.isConductor === true",
+        ".validate": "newData.hasChildren(['conductorId','message','timestamp','expires'])"
+      }
+    },
+    "passengerPreferences": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
