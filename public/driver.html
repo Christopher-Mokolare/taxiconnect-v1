@@ -323,11 +323,11 @@ async function goLive() {
       capacity,
       passengersOnboard: onboard,
       status: onboard >= capacity ? 'full' : 'loading',
-      lastUpdated: Date.now()
+      lastUpdated: firebase.database.ServerValue.TIMESTAMP
     };
     updates['drivers/' + user.uid] = {
       displayName: driverName || user.displayName || (user.email ? user.email.split('@')[0] : 'Driver'),
-      lastSeen: Date.now()
+      lastSeen: firebase.database.ServerValue.TIMESTAMP
     };
     await db.ref().update(updates);
 
@@ -359,7 +359,7 @@ async function updatePassengers() {
     await ref.update({
       passengersOnboard: liveOnboard,
       status,
-      lastUpdated: Date.now()
+      lastUpdated: firebase.database.ServerValue.TIMESTAMP
     });
     if (status === 'full') {
       document.getElementById('liveInfo').innerHTML = '<div class="alert a-success">✅ Taxi is FULL — ready to depart!</div>';
@@ -407,8 +407,8 @@ function startHeartbeat() {
         document.getElementById('liveCard').style.display = 'none';
         return;
       }
-      await ref.update({ lastUpdated: Date.now() });
-      await db.ref('drivers/' + user.uid + '/lastSeen').set(Date.now());
+      await ref.update({ lastUpdated: firebase.database.ServerValue.TIMESTAMP });
+      await db.ref('drivers/' + user.uid + '/lastSeen').set(firebase.database.ServerValue.TIMESTAMP);
     } catch (error) {
       console.error('Driver heartbeat failed:', error);
     }
