@@ -25,6 +25,7 @@ if [ -n "$CONFIG_PROJECT" ] && [ "$CONFIG_PROJECT" != "$PROJECT_ID" ]; then
   exit 1
 fi
 
+(cd functions && npm ci && npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase)
 node scripts/validate.js
 node --test tests/*.test.js
 firebase emulators:exec --project "$PROJECT_ID" --only database "node scripts/test-database-rules.js"
