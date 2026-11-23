@@ -245,7 +245,7 @@ function renderAll() {
 function renderDemand() {
   const stats = { SUN_CITY: { taxis:0, waiting:0, seats:0 }, RUSTENBURG: { taxis:0, waiting:0, seats:0 } };
   Object.values(allTaxis).forEach(t => {
-    if (!stats[t.route]) return;
+    if (!stats[t.route] || t.status === 'offline') return;
     stats[t.route].taxis++;
     stats[t.route].seats += Math.max(0, (t.capacity||14) - (t.passengersOnboard||0));
   });
@@ -269,15 +269,15 @@ function renderTaxis() {
     const taxis = entries.filter(([,t]) => t.route === route);
     const rows = taxis.length ? taxis.map(([id,t]) => {
       const needed = (t.capacity||14) - (t.passengersOnboard||0);
-      const badge = t.status === 'breakdown' ? `<span class="badge b-breakdown">⚠️ Breakdown</span>`
+      const badge = t.status === 'offline' ? `<span class="badge b-breakdown">Offline</span>`
+        : t.status === 'breakdown' ? `<span class="badge b-breakdown">⚠️ Breakdown</span>`
         : needed <= 0 ? `<span class="badge b-full">✅ Full</span>`
         : `<span class="badge b-needs">Needs ${needed}</span>`;
       return `<div class="taxi-row">
         <div class="row-header"><strong style="font-size:13px">${escapeHtml(t.driverName || "Driver")}</strong>${badge}</div>
         <div class="meta">${t.passengersOnboard||0}/${t.capacity||14} onboard · ${timeAgo(t.lastUpdated)}</div>
         <div class="action-row">
-          <button onclick="setStatus('${id}','departed')" style="background:#007bff;color:#fff">🚗 Depart</button>
-          <button onclick="setStatus('${id}','breakdown')" style="background:#dc3545;color:#fff">⚠️ Breakdown</button>
+          ${t.status === 'offline' ? '' : `<button onclick="setStatus('${id}','departed')" style="background:#007bff;color:#fff">🚗 Depart</button><button onclick="setStatus('${id}','breakdown')" style="background:#dc3545;color:#fff">⚠️ Breakdown</button>`}
           <button onclick="removeTaxi('${id}')" style="background:#6c757d;color:#fff">🗑 Remove</button>
         </div>
       </div>`;
@@ -297,14 +297,17 @@ function renderWaiting() {
         .reduce((total, passenger) => total + Number(passenger.groupSize || 1), 0);
       const freeSeats = Number(taxi.capacity || 14) -
         Number(taxi.passengersOnboard || 0) - alreadyAssigned;
-      return taxi.route === w.route && taxi.status !== 'breakdown' &&
+      return taxi.route === w.route && taxi.status !== 'breakdown' && taxi.status !== 'offline' &&
         freeSeats >= Number(w.groupSize || 1);
     });
     const assignedTaxi = w.assignedTaxiId ? allTaxis[w.assignedTaxiId] : null;
-    const assignment = w.status === 'assigned'
-      ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Assigned to ' +
-        escapeHtml(assignedTaxi?.driverName || 'taxi') + '</div>'
-      : matchingTaxis.length
+    const assignment = w.status === 'assigned' && (!assignedTaxi || assignedTaxi.status === 'offline' || assignedTaxi.status === 'breakdown')
+      ? '<div class="meta" style="color:#b45309;font-weight:700">Taxi unavailable — this group needs reassignment</div>' +
+        '<button onclick="requeueAssignment(\'' + escapeHtml(id) + '\')" style="margin-top:6px;padding:7px 10px;border:0;border-radius:7px;background:#b45309;color:#fff;font-weight:700;cursor:pointer">Return to waiting queue</button>'
+      : w.status === 'assigned'
+        ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Assigned to ' +
+          escapeHtml(assignedTaxi?.driverName || 'taxi') + '</div>'
+        : matchingTaxis.length
         ? '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">' +
           '<select id="assign-' + escapeHtml(id) + '" aria-label="Choose taxi for passenger" style="flex:1;min-width:0;padding:8px;border:1px solid #ddd;border-radius:7px">' +
           matchingTaxis.map(([taxiId,taxi]) => '<option value="' + escapeHtml(taxiId) + '">' +
@@ -441,6 +444,19 @@ async function assignTaxi(waitId) {
   } catch (error) {
     console.error('Taxi assignment failed:', error);
     alert(error?.message || 'Could not assign this taxi.');
+  }
+}
+
+async function requeueAssignment(id) {
+  try {
+    const ref = db.ref('waitingPassengers/' + id);
+    const snapshot = await ref.once('value');
+    const passenger = snapshot.val();
+    if (!passenger || passenger.status !== 'assigned') return;
+    await ref.update({ status: 'waiting', assignedTaxiId: null, assignedAt: null });
+  } catch (error) {
+    console.error('Requeue assignment failed:', error);
+    alert(error?.message || 'Could not return this group to the waiting queue.');
   }
 }
 
