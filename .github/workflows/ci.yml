@@ -44,6 +44,9 @@ jobs:
       - name: Validate Firebase configuration and web scripts
         run: node scripts/validate.js
 
+      - name: Check guarded deployment script syntax
+        run: bash -n scripts/deploy.sh
+
       - name: Run application smoke tests
         run: node --test tests/*.test.js
 
