@@ -1,5 +1,4 @@
 const functions = require("firebase-functions");
-const crypto = require("crypto");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
@@ -14,97 +13,8 @@ const ROUTES = {
 };
 
 /* =========================================================
-   AUTH
+   DRIVER
    ========================================================= */
-
-exports.loginWithPin = functions.runWith({ secrets: ["DRIVER_PIN", "CONDUCTOR_PIN"] }).https.onCall(async (data, context) => {
-  const pin = String(data?.pin || "").trim();
-  const role = String(data?.role || "").trim().toLowerCase();
-  const name = String(data?.name || "").trim();
-
-  if (!["driver", "conductor"].includes(role)) {
-    throw new functions.https.HttpsError(
-      "invalid-argument",
-      "Invalid role."
-    );
-  }
-
-  if (!name) {
-    throw new functions.https.HttpsError(
-      "invalid-argument",
-      "Name is required."
-    );
-  }
-
-  await _assertLoginNotRateLimited(context, role);
-
-  const expectedPin =
-    role === "driver"
-      ? process.env.DRIVER_PIN
-      : process.env.CONDUCTOR_PIN;
-
-  if (!expectedPin) {
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      "Staff sign-in has not been configured by the administrator."
-    );
-  }
-
-  if (pin !== expectedPin) {
-    await _recordLoginFailure(context, role);
-    throw new functions.https.HttpsError(
-      "permission-denied",
-      "Invalid PIN."
-    );
-  }
-
-  await _clearLoginFailures(context, role);
-  const slug = _slug(name);
-  if (!slug) {
-    throw new functions.https.HttpsError(
-      "invalid-argument",
-      "Enter a name containing letters or numbers."
-    );
-  }
-  const uid = `${role}_${slug}`;
-
-  let user;
-
-  try {
-    user = await auth.getUser(uid);
-  } catch (err) {
-    if (err.code !== "auth/user-not-found") {
-      throw err;
-    }
-
-    user = await auth.createUser({
-      uid,
-      displayName: name,
-    });
-  }
-
-  const claims = {
-    isDriver: role === "driver",
-    isConductor: role === "conductor",
-  };
-
-  await auth.setCustomUserClaims(uid, claims);
-
-  await db.ref(`users/${uid}`).update({
-    displayName: name,
-    role,
-    lastLogin: Date.now(),
-  });
-
-  const token = await auth.createCustomToken(uid, claims);
-
-  return {
-    token,
-    uid,
-    role,
-    displayName: name,
-  };
-});
 
 /* =========================================================
    DRIVER
@@ -123,6 +33,15 @@ exports.goLive = functions.https.onCall(async (data, context) => {
 
   const profileSnap = await db.ref(`users/${uid}`).once("value");
   const profile = profileSnap.val() || {};
+  const authUser = await auth.getUser(uid);
+  const driverName = profile.displayName || authUser.displayName ||
+    (authUser.email ? authUser.email.split("@")[0] : "Driver");
+
+  await db.ref(`users/${uid}`).update({
+    displayName: driverName,
+    role: "driver",
+    lastLogin: Date.now()
+  });
 
   const taxisSnap = await db.ref("taxis").once("value");
   const taxis = taxisSnap.val() || {};
@@ -140,7 +59,7 @@ exports.goLive = functions.https.onCall(async (data, context) => {
 
   updates[`taxis/${taxiId}`] = {
     driverId: uid,
-    driverName: profile.displayName || uid,
+    driverName,
     route,
     capacity,
     passengersOnboard: onboard,
@@ -158,7 +77,7 @@ exports.goLive = functions.https.onCall(async (data, context) => {
   await _notifyTopic(
     `passengers_${route}`,
     `Taxi available — ${ROUTES[route]}`,
-    `${profile.displayName || "A driver"} is now live.`
+    `${driverName} is now live.`
   );
 
   return {
@@ -731,41 +650,6 @@ exports.cleanupStaleTaxis = functions.pubsub
 /* =========================================================
    HELPERS
    ========================================================= */
-
-function _loginRateLimitRef(context, role) {
-  const ip = context.rawRequest?.ip || "unknown";
-  const key = crypto.createHash("sha256").update(`${role}:${ip}`).digest("hex");
-  return db.ref(`authRateLimits/${key}`);
-}
-
-async function _assertLoginNotRateLimited(context, role) {
-  const snap = await _loginRateLimitRef(context, role).once("value");
-  const blockedUntil = Number(snap.child("blockedUntil").val() || 0);
-  if (blockedUntil > Date.now()) {
-    throw new functions.https.HttpsError(
-      "resource-exhausted",
-      "Too many sign-in attempts. Try again in 15 minutes."
-    );
-  }
-}
-
-async function _recordLoginFailure(context, role) {
-  const now = Date.now();
-  const ref = _loginRateLimitRef(context, role);
-  await ref.transaction(current => {
-    const windowExpired = !current || now - Number(current.windowStart || 0) > 15 * 60 * 1000;
-    const attempts = windowExpired ? 1 : Number(current.attempts || 0) + 1;
-    return {
-      windowStart: windowExpired ? now : Number(current.windowStart),
-      attempts,
-      blockedUntil: attempts >= 5 ? now + 15 * 60 * 1000 : 0
-    };
-  });
-}
-
-async function _clearLoginFailures(context, role) {
-  await _loginRateLimitRef(context, role).remove();
-}
 
 function _requireAuth(context) {
   if (!context.auth) {
