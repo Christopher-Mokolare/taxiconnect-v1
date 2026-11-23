@@ -1,6 +1,6 @@
 # TaxiConnect V1
 
-TaxiConnect V1 is a Firebase-based taxi coordination web application for the Sun City (Sun Village) and Rustenburg (Town) routes. This V1 repository is kept separate from TaxiConnect V2.
+TaxiConnect V1 is a Firebase-based taxi coordination web application for the Sun City (Sun Village) and Rustenburg (Town) routes. It is kept separate from TaxiConnect V2 and is designed for Firebase's Spark plan.
 
 ## Web application
 
@@ -9,27 +9,31 @@ TaxiConnect V1 is a Firebase-based taxi coordination web application for the Sun
 - Conductor dashboard: `/conductor.html`
 - Public role selector: `/`
 
+## Core workflows
+
+- Passengers see live taxi availability, send a waiting signal and cancel their own signal.
+- Drivers sign in with individual staff accounts, go live, share available seats, update passenger counts, receive route summons and go offline.
+- Conductors monitor live supply and demand, summon drivers, manage taxi status and clean stale records.
+- Passenger and driver sessions restore their active waiting/taxi state after a page refresh.
+
+## Architecture
+
+The active web application uses Firebase Hosting, Firebase Authentication and Realtime Database. Browser actions write to Realtime Database directly, with role and ownership checks enforced by `database.rules.json`. The active Firebase deployment has only `database` and `hosting` targets; it does not deploy Cloud Functions or require a Blaze upgrade.
+
+Staff roles are assigned with the Admin SDK provisioning utility in `functions/scripts/provision-staff.js`. The old `functions/index.js` callable implementation is retained for reference only and is not deployed.
+
 ## Project structure
 
 - `public/` — responsive role-based web application and Firebase client configuration.
 - `public/js/app-common.js` — shared route labels, time formatting and safe text rendering.
-- `functions/` — Firebase callable and scheduled Cloud Functions.
 - `database.rules.json` — Realtime Database security rules.
 - `scripts/validate.js` — repository, configuration and browser-script validation.
+- `tests/app.test.js` — Node smoke tests for routes, auth wiring and database security boundaries.
+- `functions/scripts/provision-staff.js` — local Admin SDK utility for assigning staff roles.
 - `archive/flutter-app/` and `backup_*/` — historical source retained for reference, not part of the active web deployment.
-
-## Core workflows
-
-- Passengers see live taxi availability, send a waiting signal and cancel their own signal.
-- Drivers sign in, go live with capacity and onboard counts, update occupancy, respond to conductor summons and go offline.
-- Conductors monitor live supply and demand, summon drivers, manage taxi status and remove stale waiting records.
 
 ## Getting started
 
-1. Configure the Firebase Web App values in `public/firebase-config.js`.
-2. Enable Firebase Anonymous and Email/Password Authentication for passenger sessions.
-3. Create staff email/password accounts and assign driver/conductor custom claims using the provisioning utility in `functions/scripts/`.
-4. Review `database.rules.json`.
-5. Follow [DEPLOYMENT.md](DEPLOYMENT.md).
+Follow [DEPLOYMENT.md](DEPLOYMENT.md) to configure Firebase, enable the required Authentication providers, provision staff roles and deploy Hosting plus Realtime Database rules.
 
-**Current release status:** code and CI validation are in progress. Live Firebase configuration and non-production end-to-end verification are still required. Cloud Functions deployment requires Firebase Blaze billing; see [DEPLOYMENT.md](DEPLOYMENT.md).
+**Release status:** the application code and CI validation are implemented. The actual Firebase Web App configuration, staff accounts, role claims, deployed rules and live end-to-end acceptance still need to be completed in the Firebase project.
