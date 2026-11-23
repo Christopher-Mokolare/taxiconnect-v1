@@ -2,13 +2,13 @@
 // Copy these values from Firebase Console > Project settings > Your apps.
 // Never put service-account credentials, private keys, admin tokens or staff passwords here.
 window.FIREBASE_CONFIG = {
-  apiKey: "REPLACE_WITH_FIREBASE_WEB_API_KEY",
+  apiKey: "AIzaSyBsSCoiDF4WyYRE6Rj6AC-FtzuNVmByi1s",
   authDomain: "taxiconnect-dev.firebaseapp.com",
   databaseURL: "https://taxiconnect-dev-default-rtdb.firebaseio.com",
   projectId: "taxiconnect-dev",
-  storageBucket: "taxiconnect-dev.appspot.com",
-  messagingSenderId: "REPLACE_WITH_SENDER_ID",
-  appId: "REPLACE_WITH_WEB_APP_ID"
+  storageBucket: "taxiconnect-dev.firebasestorage.app",
+  messagingSenderId: "803041776177",
+  appId: "1:803041776177:web:62230c928448fbdba63b10"
 };
 
 window.TAXICONNECT_CONFIGURED = [
