@@ -35,6 +35,6 @@ Staff roles are assigned with the Admin SDK provisioning utility in `functions/s
 
 ## Getting started
 
-Follow [DEPLOYMENT.md](DEPLOYMENT.md) to configure Firebase, enable the required Authentication providers, provision staff roles and deploy Hosting plus Realtime Database rules.
+Follow [DEPLOYMENT.md](DEPLOYMENT.md) to configure Firebase, enable the required Authentication providers, provision staff roles and deploy Hosting plus Realtime Database rules. The guarded deployment command is `bash scripts/deploy.sh`.
 
 **Release status:** the application code and CI validation are implemented. The actual Firebase Web App configuration, staff accounts, role claims, deployed rules and live end-to-end acceptance still need to be completed in the Firebase project.
