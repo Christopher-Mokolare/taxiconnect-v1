@@ -79,17 +79,24 @@ for (const relative of requiredPages.filter((file) => file.endsWith(".html"))) {
   }
 }
 
-const backendSource = fs.readFileSync(path.join(root, "functions", "index.js"), "utf8");
-const backendExports = new Set(
-  [...backendSource.matchAll(/exports\.([A-Za-z0-9_]+)\s*=/g)].map((match) => match[1])
-);
+const firebaseConfig = JSON.parse(fs.readFileSync(path.join(root, "firebase.json"), "utf8"));
+if (Object.prototype.hasOwnProperty.call(firebaseConfig, "functions")) {
+  errors.push("Spark-compatible V1 deployment must not include Cloud Functions.");
+}
+
 for (const relative of ["public/conductor.html", "public/driver.html", "public/passenger.html"]) {
   const html = fs.readFileSync(path.join(root, relative), "utf8");
-  for (const match of html.matchAll(/httpsCallable\(['"]([^'"]+)['"]\)/g)) {
-    if (!backendExports.has(match[1])) {
-      errors.push(relative + ": missing backend callable " + match[1]);
-    }
+  if (/httpsCallable|firebase-functions-compat/.test(html)) {
+    errors.push(relative + ": active web pages must use Realtime Database, not Cloud Functions.");
   }
+}
+
+const databaseRules = JSON.parse(fs.readFileSync(path.join(root, "database.rules.json"), "utf8")).rules;
+if (databaseRules[".read"] !== false || databaseRules[".write"] !== false) {
+  errors.push("Realtime Database root access must remain denied by default.");
+}
+if (!databaseRules.taxis || !databaseRules.waitingPassengers || !databaseRules.passengerWaiting || !databaseRules.summons) {
+  errors.push("Required role-protected Realtime Database paths are missing.");
 }
 
 const configFile = path.join(root, "public", "firebase-config.js");
