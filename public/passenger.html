@@ -107,7 +107,7 @@ if (!window.TAXICONNECT_CONFIGURED) throw new Error('Firebase Web App configurat
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 let selectedRoute = 'SUN_CITY', groupSize = 1;
-let myWaitId = null, allTaxis = {};
+let myWaitId = null, myWaitRef = null, allTaxis = {};
 
 // ── Auth ──────────────────────────────────────────────────────────
 let taxisSubscribed = false;
@@ -179,7 +179,7 @@ function renderTaxis() {
     return;
   }
   el.innerHTML = taxis.map(([,t]) => {
-    const needed = (t.capacity||14) - (t.passengersOnboard||0);
+    const needed = (t.capacity||14) - (t.passengersOnboard||0) - (t.assignedPassengers||0);
     const badge = needed <= 0 ? `<span class="badge b-red">FULL</span>`
       : needed <= 3 ? `<span class="badge b-orange">🔥 ${needed} seat${needed===1?'':'s'} left</span>`
       : `<span class="badge b-green">🪑 ${needed} seats free</span>`;
