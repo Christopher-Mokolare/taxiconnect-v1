@@ -55,6 +55,10 @@ The `functions/index.js` file is retained as a historical callable-backend refer
 From the repository root:
 
 ```bash
+cd functions
+npm ci
+npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
+cd ..
 node scripts/validate.js
 node --test tests/*.test.js
 npx --yes firebase-tools emulators:exec --project taxiconnect-dev --only database "node scripts/test-database-rules.js"
