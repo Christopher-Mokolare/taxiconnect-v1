@@ -20,13 +20,13 @@
 3. Create individual staff accounts and assign their custom claims using the Admin SDK provisioning utility.
 4. Review and test Realtime Database rules using the Firebase Emulator Suite.
 5. Confirm the intended Firebase project, database instance and region before deployment.
-6. Confirm the Firebase Blaze billing requirement for Cloud Functions and set budget alerts before enabling billing.
-7. Run end-to-end tests against a non-production Firebase project, including passenger signal creation/cancellation, driver go-live/offline, conductor summons/status changes, and session restoration.
-8. Verify scheduled cleanup functions and operational monitoring.
+6. Confirm the project remains on the intended Firebase Spark plan and review the current Hosting, Authentication and Realtime Database quotas.
+7. Run end-to-end tests against a non-production Firebase project, including passenger signal creation/cancellation, driver go-live/offline, conductor summons/status changes, cleanup and session restoration.
+8. Verify manual cleanup controls and operational monitoring; scheduled server-side cleanup is not part of the Spark deployment.
 
 ## Product scope
 
-The current V1 web app supports taxi availability and route-demand coordination for Sun City (Sun Village) and Rustenburg (Town). Online payments, fare settlement, passenger SMS verification, driver KYC, GPS turn-by-turn navigation and a full trip-booking marketplace are not included in this V1 web release.
+The current V1 web app supports taxi availability and route-demand coordination for Sun City (Sun Village) and Rustenburg (Town), using Realtime Database rules as the server-side access boundary. Online payments, fare settlement, passenger SMS verification, driver KYC, GPS turn-by-turn navigation and a full trip-booking marketplace are not included in this V1 web release.
 
 ## Deployment safety
 
