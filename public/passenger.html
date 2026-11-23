@@ -17,6 +17,7 @@
         crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js" crossorigin="anonymous"></script>
 <script src="/firebase-config.js"></script>
+<script src="/js/app-common.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,sans-serif;background:#f0f2f5;min-height:100vh}
@@ -108,25 +109,51 @@ let selectedRoute = 'SUN_CITY', groupSize = 1;
 let myWaitId = null, allTaxis = {};
 
 // ── Auth ──────────────────────────────────────────────────────────
-firebase.auth().signInAnonymously().then(() => {
-  db.ref('taxis').on('value', s => {
-    allTaxis = s.val() || {};
-    renderTaxis();
-  });
-}).catch(err => {
-  console.error('Authentication failed:', err);
-});
-
 const functions = firebase.functions();
+let taxisSubscribed = false;
+
+firebase.auth().onAuthStateChanged(async user => {
+  if (!user) {
+    try {
+      await firebase.auth().signInAnonymously();
+    } catch (error) {
+      console.error('Anonymous authentication failed:', error);
+      document.getElementById('taxiList').textContent = 'Connection unavailable. Please refresh and try again.';
+    }
+    return;
+  }
+
+  if (!taxisSubscribed) {
+    taxisSubscribed = true;
+    db.ref('taxis').on('value', snapshot => {
+      allTaxis = snapshot.val() || {};
+      renderTaxis();
+    }, error => {
+      console.error('Taxi subscription failed:', error);
+      document.getElementById('taxiList').textContent = 'Could not load taxis. Please try again.';
+    });
+  }
+
+  try {
+    const lookup = functions.httpsCallable('getMyWaitingSignal');
+    const result = await lookup({});
+    myWaitId = result.data.waitId || null;
+    syncWaitControls();
+  } catch (error) {
+    console.error('Could not restore waiting signal:', error);
+  }
+});
 
 function enterApp() {
   show('appScreen');
 }
 
-function signOut() {
-  if (myWaitId) cancelSignal();
+async function signOut() {
+  if (myWaitId) await cancelWaiting();
+  await firebase.auth().signOut();
+  taxisSubscribed = false;
+  db.ref('taxis').off('value');
   show('authScreen');
-  document.getElementById('signOutBtn').style.display = 'none';
 }
 
 function showErr(m) { const e = document.getElementById('authError'); if(e){ e.textContent = m; e.style.display = 'block'; } }
@@ -134,9 +161,9 @@ function showErr(m) { const e = document.getElementById('authError'); if(e){ e.t
 // ── Taxis ─────────────────────────────────────────────────────────
 function renderTaxis() {
   const el = document.getElementById('taxiList');
-  const taxis = Object.entries(allTaxis).filter(([,t]) => t.route === selectedRoute);
+  const taxis = Object.entries(allTaxis).filter(([,t]) => t.route === selectedRoute && t.status !== 'breakdown');
   if (!taxis.length) {
-    el.innerHTML = `<div class="alert a-danger">🔴 No taxis to <strong>${ROUTES[selectedRoute].label}</strong> right now.<br><small>Use the button below to alert the conductor.</small></div>`;
+    el.innerHTML = `<div class="alert a-danger">🔴 No taxis to <strong>${routeLabel(selectedRoute)}</strong> right now.<br><small>Use the button below to alert the conductor.</small></div>`;
     return;
   }
   el.innerHTML = taxis.map(([,t]) => {
@@ -146,7 +173,7 @@ function renderTaxis() {
       : `<span class="badge b-green">🪑 ${needed} seats free</span>`;
     const status = needed <= 0 ? 'Leaving soon' : needed <= 3 ? 'Almost full — hurry!' : '🟢 Loading passengers';
     return `<div class="taxi-row">
-      <div class="row-header"><strong style="font-size:14px">${t.driverName}</strong>${badge}</div>
+      <div class="row-header"><strong style="font-size:14px">${escapeHtml(t.driverName || 'Driver')}</strong>${badge}</div>
       <div class="meta">${status} · ${t.passengersOnboard||0}/${t.capacity||14} onboard</div>
     </div>`;
   }).join('');
@@ -183,7 +210,7 @@ async function sendSignal() {
 
     myWaitId = result.data.waitId;
     document.getElementById('waitBtn').style.display = 'none';
-    document.getElementById('cancelBtn').style.display = 'block';
+    syncWaitControls();
     alert('Waiting signal sent successfully.');
   } catch (error) {
     console.error('signalWaiting failed:', error);
@@ -198,12 +225,16 @@ async function cancelWaiting() {
     const fn = functions.httpsCallable('cancelWaiting');
     await fn({ waitId: myWaitId });
     myWaitId = null;
-    document.getElementById('waitBtn').style.display = 'block';
-    document.getElementById('cancelBtn').style.display = 'none';
+    syncWaitControls();
   } catch (error) {
     console.error('cancelWaiting failed:', error);
     alert(error?.message || 'Could not cancel waiting signal.');
   }
+}
+
+function syncWaitControls() {
+  document.getElementById('waitBtn').style.display = myWaitId ? 'none' : 'block';
+  document.getElementById('cancelBtn').style.display = myWaitId ? 'block' : 'none';
 }
 
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
