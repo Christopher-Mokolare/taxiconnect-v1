@@ -39,7 +39,7 @@ test("database rules enforce role and passenger ownership boundaries", () => {
   const rules = JSON.parse(read("database.rules.json")).rules;
   assert.equal(rules[".read"], false);
   assert.equal(rules[".write"], false);
-  assert.match(rules.taxis[".write"], /isDriver/);
+  assert.match(rules.taxis["$taxiId"][".write"], /isDriver/);
   assert.match(rules.taxis[".write"], /isConductor/);
   assert.match(rules.waitingPassengers["$waitId"][".write"], /passengerId/);
   assert.match(rules.waitingPassengers["$waitId"][".read"], /auth.uid/);
