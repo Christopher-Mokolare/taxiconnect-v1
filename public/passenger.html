@@ -107,7 +107,7 @@ if (!window.TAXICONNECT_CONFIGURED) throw new Error('Firebase Web App configurat
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 let selectedRoute = 'SUN_CITY', groupSize = 1;
-let myWaitId = null, myWaitRef = null, allTaxis = {};
+let myWaitId = null, myWaitRef = null, myAssignedTaxiRef = null, allTaxis = {};
 
 // ── Auth ──────────────────────────────────────────────────────────
 let taxisSubscribed = false;
@@ -269,29 +269,36 @@ async function cancelWaiting() {
 async function renderWaitStatus(record) {
   const el = document.getElementById('waitStatus');
   if (!record) {
+    if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
+    myAssignedTaxiRef = null;
     el.style.display = 'none';
     el.textContent = '';
     return;
   }
   el.style.display = 'block';
   if (record.status === 'assigned' && record.assignedTaxiId) {
-    el.textContent = 'A taxi has been assigned. Loading driver details…';
-    try {
-      const taxiSnap = await db.ref('taxis/' + record.assignedTaxiId).once('value');
-      const taxi = taxiSnap.val();
-      if (taxi) {
+    const path = 'taxis/' + record.assignedTaxiId;
+    if (!myAssignedTaxiRef || myAssignedTaxiRef.toString() !== db.ref(path).toString()) {
+      if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
+      myAssignedTaxiRef = db.ref(path);
+      myAssignedTaxiRef.on('value', snapshot => {
+        const taxi = snapshot.val();
+        if (!taxi || taxi.status === 'offline' || taxi.status === 'breakdown') {
+          el.textContent = '⚠️ Your assigned taxi is unavailable. The conductor can return your group to the waiting queue.';
+          return;
+        }
         el.textContent = '🚕 Taxi assigned: ' + (taxi.driverName || 'Driver') +
           ' · ' + routeLabel(taxi.route) + ' · ' +
           Math.max(0, Number(taxi.capacity || 0) - Number(taxi.passengersOnboard || 0)) + ' seats available.';
-      } else {
-        el.textContent = 'A taxi was assigned, but it is no longer active. Please contact the conductor.';
-      }
-    } catch (error) {
-      console.error('Could not load assigned taxi:', error);
-      el.textContent = 'A taxi has been assigned. Please keep this page open for updates.';
+      }, error => {
+        console.error('Could not watch assigned taxi:', error);
+        el.textContent = 'A taxi has been assigned. Please keep this page open for updates.';
+      });
     }
     return;
   }
+  if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
+  myAssignedTaxiRef = null;
   el.textContent = '📢 Your waiting signal is active. The conductor can see your request.';
 }
 
@@ -303,6 +310,8 @@ function syncWaitControls() {
 function watchMyWaitingSignal() {
   if (myWaitRef) myWaitRef.off('value');
   myWaitRef = null;
+  if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
+  myAssignedTaxiRef = null;
   const user = firebase.auth().currentUser;
   if (!user || !myWaitId) return;
 
