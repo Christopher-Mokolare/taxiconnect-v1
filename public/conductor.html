@@ -145,7 +145,7 @@ let subscribed = false;
 
 // ── Auth ──────────────────────────────────────────────────────────
 // Conductor authentication is handled by Cloud Functions.
-// Never store the conductor PIN in public JavaScript.
+// Staff roles are verified from server-issued Firebase custom claims.
 const functions = firebase.functions();
 
 async function staffLogin() {
@@ -195,7 +195,7 @@ async function signOut() {
 
 function showErr(m) { const e = document.getElementById('authError'); e.textContent = m; e.style.display = 'block'; }
 
-// Auto-login if PIN session still active
+// Restore the signed-in conductor session
 firebase.auth().onAuthStateChanged(async user => {
   if (!user || sessionStorage.getItem('tc_role') !== 'conductor') return;
 
