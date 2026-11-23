@@ -12,6 +12,8 @@
 - The destructive whole-database deletion callable and unused phone pre-approval endpoint have been removed.
 - Conductors can assign waiting groups only to active taxis on the same route with enough remaining seats; assignment state is visible to the passenger.
 - If a taxi is marked broken down or removed, its assigned waiting groups are returned to the waiting queue.
+- Drivers cannot delete taxi records directly. Going offline marks the taxi unavailable, and the conductor can return affected assignments to the queue without losing passenger signals.
+- Passengers subscribe to their assigned taxi status and see when the taxi becomes unavailable.
 - GitHub Actions validates configuration and browser scripts, runs application smoke tests, and exercises database authorization in the Firebase Emulator Suite.
 
 ## Required before production release
