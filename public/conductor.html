@@ -423,7 +423,7 @@ function requestNotificationPermission() {
 
 async function notifyRoute(route) {
   const waiting = Object.values(allWaiting).filter(item => item.route === route);
-  const count = waiting.reduce((sum, item) => sum + Number(item.groupSize || 1), 0);
+  const count = Math.min(200, waiting.reduce((sum, item) => sum + Number(item.groupSize || 1), 0));
   if (!count) {
     alert('No waiting passengers for this route.');
     return;
