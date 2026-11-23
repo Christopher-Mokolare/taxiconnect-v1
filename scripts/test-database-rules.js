@@ -96,6 +96,29 @@ async function main() {
       lastUpdated: Date.now()
     };
     await assertSucceeds(set(ref(driverDb, "taxis/taxi-1"), ownTaxi));
+    const assignableWait = {
+      route: "RUSTENBURG",
+      groupSize: 2,
+      passengerId: "passenger-1",
+      timestamp: Date.now(),
+      status: "waiting"
+    };
+    await assertSucceeds(set(ref(passengerDb, "waitingPassengers/wait-assign"), assignableWait));
+    await assertSucceeds(update(ref(conductorDb, "waitingPassengers/wait-assign"), {
+      status: "assigned",
+      assignedTaxiId: "taxi-1",
+      assignedAt: Date.now()
+    }));
+    await assertSucceeds(get(ref(passengerDb, "waitingPassengers/wait-assign")));
+    await assertFails(update(ref(otherPassengerDb, "waitingPassengers/wait-assign"), {
+      status: "assigned",
+      assignedTaxiId: "taxi-1",
+      assignedAt: Date.now()
+    }));
+    await assertFails(update(ref(conductorDb, "waitingPassengers/wait-assign"), {
+      assignedTaxiId: "missing-taxi",
+      assignedAt: Date.now()
+    }));
     await assertFails(set(ref(driverDb, "taxis/taxi-spoof"), {
       ...ownTaxi,
       driverId: "driver-2"
