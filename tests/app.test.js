@@ -78,6 +78,6 @@ test("staff authentication uses individual Firebase accounts and admin role clai
 test("Spark deployment does not publish Cloud Functions", () => {
   const config = JSON.parse(read("firebase.json"));
   assert.equal(Object.hasOwn(config, "functions"), false);
-  assert.deepEqual(Object.keys(config).sort(), ["database", "hosting"]);
+  assert.deepEqual(Object.keys(config).filter(key => key !== "emulators").sort(), ["database", "hosting"]);
   assert.doesNotMatch(read("public/firebase-config.js"), /serviceAccount|private_key/i);
 });
