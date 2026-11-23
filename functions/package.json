@@ -7,7 +7,8 @@
   },
   "scripts": {
     "check": "node --check index.js",
-    "provision:staff": "node scripts/provision-staff.js"
+    "provision:staff": "node scripts/provision-staff.js",
+    "seed:test": "node scripts/seed-test-data.js"
   },
   "dependencies": {
     "firebase-admin": "^13.0.2",
