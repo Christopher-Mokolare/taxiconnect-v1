@@ -81,9 +81,9 @@
         ".write": "auth != null && auth.uid === $uid"
       }
     },
-    "approvedPhones": {
+    "authRateLimits": {
       ".read": false,
-      ".write": "auth != null && auth.token.isConductor === true"
+      ".write": false
     }
   }
 }
