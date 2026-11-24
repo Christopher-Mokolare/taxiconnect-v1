@@ -130,6 +130,45 @@ async function main() {
       assignedAt: Date.now()
     }));
     await assertSucceeds(get(ref(passengerDb, "waitingPassengers/wait-assign")));
+
+    // Existing requests remain assignable after the 60-second creation window,
+    // provided their original timestamp is immutable and the 45-minute expiry remains valid.
+    const staleRequestNow = Date.now();
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await set(ref(context.database(), "waitingPassengers/wait-old"), {
+        route: "RUSTENBURG",
+        groupSize: 2,
+        passengerId: "passenger-1",
+        timestamp: staleRequestNow - 2 * 60 * 1000,
+        pickupPoint: "Mabeskraal village shop",
+        expiresAt: staleRequestNow + 20 * 60 * 1000,
+        status: "waiting"
+      });
+      await set(ref(context.database(), "waitingPassengers/wait-expired"), {
+        route: "RUSTENBURG",
+        groupSize: 2,
+        passengerId: "passenger-1",
+        timestamp: staleRequestNow - 2 * 60 * 1000,
+        pickupPoint: "Mabeskraal village shop",
+        expiresAt: staleRequestNow - 1000,
+        status: "waiting"
+      });
+    });
+    await assertSucceeds(update(ref(conductorDb, "waitingPassengers/wait-old"), {
+      status: "assigned",
+      assignedTaxiId: "taxi-1",
+      assignedAt: Date.now()
+    }));
+    await assertFails(update(ref(conductorDb, "waitingPassengers/wait-expired"), {
+      status: "assigned",
+      assignedTaxiId: "taxi-1",
+      assignedAt: Date.now()
+    }));
+    await assertFails(update(ref(conductorDb, "waitingPassengers/wait-old"), {
+      timestamp: Date.now(),
+      assignedTaxiId: "taxi-1",
+      assignedAt: Date.now()
+    }));
     await assertFails(update(ref(otherPassengerDb, "waitingPassengers/wait-assign"), {
       status: "assigned",
       assignedTaxiId: "taxi-1",
