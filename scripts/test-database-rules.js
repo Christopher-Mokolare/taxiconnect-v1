@@ -105,6 +105,8 @@ async function main() {
     await assertSucceeds(get(ref(passengerDb, "taxiConnections/taxi-1")));
     await assertSucceeds(get(ref(conductorDb, "taxiConnections/taxi-1")));
     await assertFails(set(ref(otherDriverDb, "taxiConnections/taxi-1/session-evil"), connectionSession));
+    await assertSucceeds(remove(ref(conductorDb, "taxiConnections/taxi-1/session-1")));
+    await assertSucceeds(set(ref(driverDb, "taxiConnections/taxi-1/session-1"), connectionSession));
     await assertSucceeds(remove(ref(driverDb, "taxiConnections/taxi-1/session-1")));
     const assignableWait = {
       route: "RUSTENBURG",
