@@ -1,0 +1,49 @@
+name: TaxiConnect Playwright development smoke tests
+
+on:
+  push:
+    branches:
+      - feat/v1-product-completion
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taxiconnect-playwright-dev
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    name: Playwright against TaxiConnect-Dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out test branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        run: npm install --no-save --no-package-lock @playwright/test
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser tests against deployed development app
+        env:
+          TAXICONNECT_BASE_URL: https://taxiconnect-dev.web.app
+        run: npx playwright test --config=tests/e2e/playwright.config.js tests/e2e/taxiconnect-dev.spec.js
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taxiconnect-playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
