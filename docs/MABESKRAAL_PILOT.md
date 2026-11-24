@@ -29,7 +29,7 @@ TaxiConnect is a coordination tool for existing local taxi operators. It is not 
 - A lost phone connection does not change the taxi's operational status.
 - A 30-second heartbeat refreshes the connection lease. Other screens treat the vehicle as unverified when no recent connection session is present.
 - Drivers receive only aggregated demand summaries by route and pickup point. They do not receive passenger names or passenger UIDs through the demand summary.
-- Operators/conductors can view individual waiting requests and coordinate assignments.
+- The operator/dispatcher workspace can be run by an association representative, rank coordinator or fleet owner; an onboard conductor is not required. It can view individual waiting requests and coordinate assignments.
 
 ## Status meanings
 
@@ -59,7 +59,7 @@ TaxiConnect is a coordination tool for existing local taxi operators. It is not 
 
 ## Operational limitations to resolve before a live pilot
 
-- A conductor/operator account must be online to publish updated aggregated demand summaries in this Spark-only version. If no operator dashboard is active, drivers may see the last summary until it expires.
+- An authorised operator/dispatcher account must be online to publish updated aggregated demand summaries in this Spark-only version. This role can belong to an association representative or fleet owner rather than a vehicle conductor. If no operator dashboard is active, drivers may see the last summary until it expires.
 - Expired waiting records are removed by operator cleanup; all displays independently exclude expired requests.
 - IndexedDB is browser/device-specific. A queued request cannot be recovered on another device or after browser data is cleared.
 - WhatsApp, SMS, USSD, scheduled departure feeds and native Android offline persistence are future integrations, not part of this pilot.
