@@ -150,13 +150,7 @@
     },
     "routeDemand": {
       ".read": "auth != null && (auth.token.isDriver === true || auth.token.isConductor === true)",
-      ".write": "auth != null && auth.token.isConductor === true",
-      "$stopKey": {
-        ".validate": "newData.hasChildren(['route','pickupPoint','people','requests','expiresAt']) && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('pickupPoint').isString() && newData.child('pickupPoint').val().length >= 2 && newData.child('pickupPoint').val().length <= 80 && newData.child('people').isNumber() && newData.child('people').val() >= 1 && newData.child('people').val() <= 200 && newData.child('requests').isNumber() && newData.child('requests').val() >= 1 && newData.child('requests').val() <= 200 && newData.child('expiresAt').isNumber() && newData.child('expiresAt').val() > now && newData.child('expiresAt').val() <= now + 3600000",
-        "$other": {
-          ".validate": false
-        }
-      }
+      ".write": "auth != null && auth.token.isConductor === true"
     }
   }
 }
