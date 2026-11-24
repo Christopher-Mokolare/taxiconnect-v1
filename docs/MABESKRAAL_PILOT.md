@@ -27,7 +27,7 @@ TaxiConnect is a coordination tool for existing local taxi operators. It is not 
 - Drivers publish a taxi's operational status (loading/full) independently of connection presence.
 - Each driver browser session registers its own Realtime Database connection record and a server-side onDisconnect removal.
 - A lost phone connection does not change the taxi's operational status.
-- A 30-second heartbeat refreshes the connection lease. Other screens treat the vehicle as unverified when no recent connection session is present.
+- A 30-second heartbeat refreshes the connection lease. Other screens treat the vehicle as unverified after three minutes without a fresh heartbeat; Firebase `onDisconnect` normally removes the session sooner when the server detects a lost connection.
 - Drivers receive only aggregated demand summaries by route and pickup point. They do not receive passenger names or passenger UIDs through the demand summary.
 - The operator/dispatcher workspace can be run by an association representative, rank coordinator or fleet owner; an onboard conductor is not required. It can view individual waiting requests and coordinate assignments.
 
@@ -72,11 +72,12 @@ TaxiConnect is a coordination tool for existing local taxi operators. It is not 
 3. Reconnecting a driver restores connection presence.
 4. A passenger can create, cancel and restore one active waiting request.
 5. A request saved offline survives a page reload and is sent after reconnecting, without creating duplicates.
-6. The conductor sees waiting counts grouped by pickup point.
-7. The driver sees only the aggregated counts and pickup-point labels.
-8. Expired requests disappear from demand and cannot be assigned.
-9. A taxi with lost connectivity is not offered for a new assignment.
-10. The development CI emulator verifies the database permission boundaries.
+6. Expired assignments do not reserve seats on a taxi.
+7. The conductor sees waiting counts grouped by pickup point.
+8. The driver sees only the aggregated counts and pickup-point labels.
+9. Expired requests disappear from demand and cannot be assigned.
+10. A taxi with lost connectivity is not offered for a new assignment.
+11. The development CI emulator verifies the database permission boundaries.
 
 ## Deployment boundary
 
