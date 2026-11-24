@@ -141,6 +141,30 @@
           },
           "$other": {
             ".validate": false
+          },
+          "waitId": {
+            ".validate": "newData.isString()"
+          },
+          "passengerId": {
+            ".validate": "newData.isString()"
+          },
+          "driverName": {
+            ".validate": "newData.isString() && newData.val().length <= 80"
+          },
+          "route": {
+            ".validate": "newData.val() === 'SUN_CITY' || newData.val() === 'RUSTENBURG'"
+          },
+          "groupSize": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 10"
+          },
+          "groupCode": {
+            ".validate": "newData.isString() && newData.val().matches(/^[A-Z0-9]{6}$/)"
+          },
+          "status": {
+            ".validate": "newData.val() === 'assigned' || newData.val() === 'pickedUp'"
+          },
+          "assignedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 5000 && newData.val() >= now - 60000"
           }
         }
       }
