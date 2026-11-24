@@ -138,7 +138,7 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 let selectedRoute = 'SUN_CITY', capacity = 14, onboard = 0, liveOnboard = 0;
 let myTaxiId = null, myCapacity = 14, summonsRef = null, heartbeatTimer = null;
-let assignmentsRef = null, assignedGroups = {};
+let assignmentsRef = null, assignedGroups = {}, taxiStatusRef = null;
 
 // ── Auth ──────────────────────────────────────────────────────────
 let driverName = '';
@@ -275,10 +275,40 @@ async function restoreMyTaxi() {
   document.getElementById('drv-sun').classList.toggle('sel', selectedRoute === 'SUN_CITY');
   document.getElementById('drv-rust').classList.toggle('sel', selectedRoute === 'RUSTENBURG');
   startHeartbeat();
+  watchMyTaxiStatus();
   watchAssignedGroups();
 }
 
 // ── Assigned passenger groups
+function stopWatchingMyTaxiStatus() {
+  if (taxiStatusRef) taxiStatusRef.off('value');
+  taxiStatusRef = null;
+}
+
+function watchMyTaxiStatus() {
+  stopWatchingMyTaxiStatus();
+  if (!myTaxiId) return;
+  taxiStatusRef = db.ref('taxis/' + myTaxiId);
+  taxiStatusRef.on('value', snapshot => {
+    if (!snapshot.exists()) {
+      stopHeartbeat();
+      stopWatchingAssignedGroups();
+      stopWatchingMyTaxiStatus();
+      myTaxiId = null;
+      document.getElementById('liveCard').style.display = 'none';
+      document.getElementById('checkInCard').style.display = 'block';
+      return;
+    }
+    const taxi = snapshot.val();
+    if (taxi.driverId !== firebase.auth().currentUser?.uid) return;
+    if (taxi.status === 'breakdown') {
+      document.getElementById('liveInfo').innerHTML = '<div class="alert a-danger">⚠️ The operator has marked this taxi as broken down. Do not accept new passengers.</div>';
+    } else if (taxi.status === 'offline') {
+      document.getElementById('liveInfo').innerHTML = '<div class="alert a-danger">This taxi is offline on the operator board.</div>';
+    }
+  }, error => console.error('Taxi status listener failed:', error));
+}
+
 function stopWatchingAssignedGroups() {
   if (assignmentsRef) assignmentsRef.off('value');
   assignmentsRef = null;
@@ -479,6 +509,7 @@ async function goLive() {
     document.getElementById('checkInCard').style.display = 'none';
     document.getElementById('liveCard').style.display = 'block';
     startHeartbeat();
+    watchMyTaxiStatus();
     watchAssignedGroups();
   } catch (err) {
     myTaxiId = null;
@@ -522,6 +553,7 @@ async function goOffline() {
   }
   if (taxi) await ref.update({ status: 'offline', lastUpdated: firebase.database.ServerValue.TIMESTAMP });
   stopHeartbeat();
+  stopWatchingMyTaxiStatus();
   stopWatchingAssignedGroups();
   myTaxiId = null;
   onboard = 0;
