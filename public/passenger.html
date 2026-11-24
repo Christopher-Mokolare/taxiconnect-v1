@@ -337,10 +337,19 @@ async function publishPassengerSignal(user, pending) {
 
 async function flushPendingSignals() {
   const user = firebase.auth().currentUser;
-  if (!user || !navigator.onLine || flushingPendingSignals || !window.TaxiConnectOfflineQueue) return;
+  if (!user || flushingPendingSignals || !window.TaxiConnectOfflineQueue) return;
   flushingPendingSignals = true;
   try {
     const pendingItems = await TaxiConnectOfflineQueue.all();
+    const ownPending = pendingItems.filter(item => item.passengerId === user.uid);
+    if (ownPending.length) {
+      pendingSignalId = ownPending[0].id;
+      syncWaitControls();
+      const status = document.getElementById('waitStatus');
+      status.textContent = 'Saved on this phone — not sent yet. TaxiConnect will send it when the connection returns.';
+      status.style.display = 'block';
+    }
+    if (!navigator.onLine) return;
     for (const pending of pendingItems) {
       if (pending.passengerId !== user.uid) continue;
       pendingSignalId = pending.id;
