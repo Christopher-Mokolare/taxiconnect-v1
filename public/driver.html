@@ -288,7 +288,7 @@ function listenForSummons() {
     const s = snap.val();
     if (!s || Date.now() - s.timestamp > 5 * 60 * 1000) return;
     const banner = document.getElementById('summonBanner');
-    banner.textContent = `🚨 Conductor needs drivers → ${ROUTES[selectedRoute].label}! ${s.count} passengers waiting.`;
+    banner.textContent = `🚨 Operator needs drivers → ${ROUTES[selectedRoute].label}! ${s.count} passengers waiting.`;
     banner.style.display = 'block';
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('🚨 TaxiConnect', { body: `${s.count} passengers waiting for ${ROUTES[selectedRoute].label}. Go live now!` });
