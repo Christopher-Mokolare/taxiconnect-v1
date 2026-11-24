@@ -561,7 +561,24 @@ async function cleanupStale() {
 
     for (const [id, taxi] of Object.entries(allTaxis)) {
       if (Number(taxi?.lastUpdated || 0) < taxiCutoff) {
-        updates['taxis/' + id] = null;
+        const assignedGroups = Object.entries(allWaiting).filter(([, passenger]) => passenger?.assignedTaxiId === id);
+        const hasPickedUpGroups = Object.values(allAssignments[id] || {}).some(group => group?.status === 'pickedUp');
+
+        for (const [waitId, passenger] of assignedGroups) {
+          if (allAssignments[id]?.[waitId]?.status === 'pickedUp') continue;
+          updates['waitingPassengers/' + waitId + '/status'] = 'waiting';
+          updates['waitingPassengers/' + waitId + '/assignedTaxiId'] = null;
+          updates['waitingPassengers/' + waitId + '/assignedAt'] = null;
+          updates['waitingPassengers/' + waitId + '/groupCode'] = null;
+          updates['taxiAssignments/' + id + '/' + waitId] = null;
+        }
+
+        if (Number(taxi.passengersOnboard || 0) > 0 || hasPickedUpGroups) {
+          updates['taxis/' + id + '/status'] = 'offline';
+          updates['taxis/' + id + '/lastUpdated'] = Date.now();
+        } else {
+          updates['taxis/' + id] = null;
+        }
       }
     }
 
