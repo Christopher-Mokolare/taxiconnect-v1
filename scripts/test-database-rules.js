@@ -156,6 +156,23 @@ async function main() {
     await assertFails(get(ref(passengerDb, "drivers/driver-1")));
     await assertSucceeds(get(ref(driverDb, "drivers/driver-1")));
 
+    await assertSucceeds(set(ref(conductorDb, "routeDemand/mabeskraal-stop"), {
+      route: "RUSTENBURG",
+      pickupPoint: "Mabeskraal village shop",
+      people: 5,
+      requests: 3,
+      expiresAt: Date.now() + 30 * 60 * 1000
+    }));
+    await assertSucceeds(get(ref(driverDb, "routeDemand")));
+    await assertFails(get(ref(passengerDb, "routeDemand")));
+    await assertFails(set(ref(driverDb, "routeDemand/forbidden"), {
+      route: "RUSTENBURG",
+      pickupPoint: "Main road",
+      people: 2,
+      requests: 2,
+      expiresAt: Date.now() + 30 * 60 * 1000
+    }));
+
     await assertSucceeds(get(ref(conductorDb, "waitingPassengers")));
     await assertSucceeds(update(ref(conductorDb, "taxis/taxi-1"), {
       status: "breakdown",
