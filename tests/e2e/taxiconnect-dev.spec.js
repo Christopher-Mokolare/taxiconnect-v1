@@ -49,7 +49,7 @@ test.describe('TaxiConnect development smoke tests', () => {
     await expect(password).toHaveAttribute('type', 'password');
     await page.getByRole('button', { name: 'Show password' }).click();
     await expect(password).toHaveAttribute('type', 'text');
-    await page.getByRole('button', { name: 'Hide password' }).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Hide password' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Enter Dashboard' })).toBeVisible();
   });
 
