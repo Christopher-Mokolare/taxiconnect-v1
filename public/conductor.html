@@ -149,7 +149,7 @@ const defaultFirebaseApp = firebase.apps.find(app => app.name === '[DEFAULT]')
   || firebase.initializeApp(window.FIREBASE_CONFIG);
 const db = firebase.database(defaultFirebaseApp);
 let allTaxis = {}, allWaiting = {}, allConnections = {};
-let subscribed = false, lastDemandSignature = null;
+let subscribed = false, lastDemandSignature = null, demandRefreshTimer = null;
 
 // ── Auth ──────────────────────────────────────────────────────────
 // Conductor access uses Firebase Email/Password plus server-issued custom claims.
@@ -210,6 +210,8 @@ async function signOut() {
   db.ref('taxis').off('value');
   db.ref('waitingPassengers').off('value');
   db.ref('taxiConnections').off('value');
+  if (demandRefreshTimer) window.clearInterval(demandRefreshTimer);
+  demandRefreshTimer = null;
   subscribed = false;
   try {
     await firebase.auth().signOut();
@@ -252,6 +254,7 @@ function subscribe() {
   db.ref('taxis').on('value', s => { allTaxis = s.val() || {}; renderAll(); }, error => showErr(error.message));
   db.ref('waitingPassengers').on('value', s => { allWaiting = s.val() || {}; renderAll(); }, error => showErr(error.message));
   db.ref('taxiConnections').on('value', s => { allConnections = s.val() || {}; renderAll(); }, error => { console.error('Taxi connection subscription failed:', error); allConnections = {}; renderAll(); });
+  if (!demandRefreshTimer) demandRefreshTimer = window.setInterval(renderAll, 30000);
 }
 
 function renderAll() {
@@ -284,9 +287,7 @@ function renderDemand() {
     stats[taxi.route].seats += Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0));
   });
   Object.values(allWaiting).forEach(wait => {
-    if (stats[wait.route] && (wait.status === 'assigned' || isWaitingRequestActive(wait))) {
-      if (waitingRequestExpiry(wait) > Date.now()) stats[wait.route].waiting += Number(wait.groupSize || 1);
-    }
+    if (stats[wait.route] && isWaitingRequestActive(wait)) stats[wait.route].waiting += Number(wait.groupSize || 1);
   });
   document.getElementById('demandOverview').innerHTML = Object.entries(stats).map(([route, value]) => `
     <div class="demand-row">
