@@ -17,6 +17,7 @@
         crossorigin="anonymous"></script>
 <script src="/firebase-config.js"></script>
 <script src="/js/app-common.js"></script>
+<script src="/js/offline-queue.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,sans-serif;background:#f0f2f5;min-height:100vh}
@@ -91,14 +92,16 @@
 
   <div class="card">
     <h3>Signal You're Waiting</h3>
-    <p style="font-size:12px;color:#666">No taxi? Alert the conductor — they'll send a driver.</p>
+    <p style="font-size:12px;color:#666">No taxi? Register your pickup point so the local operator can see demand.</p>
+    <label for="pickupPointInput" style="display:block;font-size:12px;color:#666;margin-top:12px">Your pickup point</label>
+    <input id="pickupPointInput" type="text" maxlength="80" autocomplete="off" placeholder="e.g. village shop or main road stop" style="width:100%;padding:11px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:6px" />
     <div class="counter-wrap">
       <button class="cbtn minus" onclick="adjGroup(-1)">−</button>
       <span class="cval" id="groupVal">1</span>
       <button class="cbtn plus" onclick="adjGroup(1)">+</button>
       <span style="font-size:13px;color:#666">people</span>
     </div>
-    <button class="btn btn-primary" id="waitBtn" onclick="sendSignal()">📢 I'M WAITING — Alert Conductor</button>
+    <button class="btn btn-primary" id="waitBtn" onclick="sendSignal()">📢 I'M WAITING — Register Demand</button>
     <button class="btn btn-grey" id="cancelBtn" onclick="cancelWaiting()" style="display:none">✖ Cancel Signal</button>
     <div id="waitStatus" class="alert a-success" style="display:none;margin-top:10px" role="status" aria-live="polite"></div>
   </div>
@@ -109,7 +112,8 @@ if (!window.TAXICONNECT_CONFIGURED) throw new Error('Firebase Web App configurat
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 let selectedRoute = 'SUN_CITY', groupSize = 1;
-let myWaitId = null, myWaitRef = null, myAssignedTaxiRef = null, allTaxis = {};
+let myWaitId = null, myWaitRef = null, myAssignedTaxiRef = null, allTaxis = {}, allConnections = {};
+let pendingSignalId = null, flushingPendingSignals = false;
 
 // ── Auth ──────────────────────────────────────────────────────────
 let taxisSubscribed = false;
@@ -134,6 +138,16 @@ firebase.auth().onAuthStateChanged(async user => {
       console.error('Taxi subscription failed:', error);
       document.getElementById('taxiList').textContent = 'Could not load taxis. Please try again.';
     });
+    db.ref('taxiConnections').on('value', snapshot => {
+      allConnections = snapshot.val() || {};
+      renderTaxis();
+      refreshAssignedTaxiConnection();
+    }, error => {
+      console.error('Taxi connection subscription failed:', error);
+      allConnections = {};
+      renderTaxis();
+      refreshAssignedTaxiConnection();
+    });
   }
 
   try {
@@ -153,6 +167,7 @@ firebase.auth().onAuthStateChanged(async user => {
     }
     syncWaitControls();
     watchMyWaitingSignal();
+    await flushPendingSignals();
   } catch (error) {
     console.error('Could not restore waiting signal:', error);
   }
@@ -163,10 +178,11 @@ function enterApp() {
 }
 
 async function signOut() {
-  if (myWaitId) await cancelWaiting();
+  if (myWaitId || pendingSignalId) await cancelWaiting();
   await firebase.auth().signOut();
   taxisSubscribed = false;
   db.ref('taxis').off('value');
+  db.ref('taxiConnections').off('value');
   show('authScreen');
 }
 
@@ -175,20 +191,31 @@ function showErr(m) { const e = document.getElementById('authError'); if(e){ e.t
 // ── Taxis ─────────────────────────────────────────────────────────
 function renderTaxis() {
   const el = document.getElementById('taxiList');
-  const taxis = Object.entries(allTaxis).filter(([,t]) => t.route === selectedRoute && t.status !== 'breakdown' && t.status !== 'offline');
+  const taxis = Object.entries(allTaxis).filter(([, taxi]) => taxi.route === selectedRoute);
   if (!taxis.length) {
-    el.innerHTML = `<div class="alert a-danger">🔴 No taxis to <strong>${routeLabel(selectedRoute)}</strong> right now.<br><small>Use the button below to alert the conductor.</small></div>`;
+    el.innerHTML = `<div class="alert a-danger">No taxi updates for <strong>${routeLabel(selectedRoute)}</strong> yet.<br><small>You can register your waiting demand below.</small></div>`;
     return;
   }
-  el.innerHTML = taxis.map(([,t]) => {
-    const needed = (t.capacity||14) - (t.passengersOnboard||0);
-    const badge = needed <= 0 ? `<span class="badge b-red">FULL</span>`
-      : needed <= 3 ? `<span class="badge b-orange">🔥 ${needed} seat${needed===1?'':'s'} left</span>`
-      : `<span class="badge b-green">🪑 ${needed} seats free</span>`;
-    const status = needed <= 0 ? 'Leaving soon' : needed <= 3 ? 'Almost full — hurry!' : '🟢 Loading passengers';
+  el.innerHTML = taxis.map(([taxiId, taxi]) => {
+    const sessions = allConnections[taxiId] || {};
+    const connected = isTaxiFresh(taxi, sessions);
+    const connectionLabel = taxiConnectionLabel(taxi, sessions);
+    const seats = Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0));
+    let badge;
+    if (taxi.status === 'offline') badge = '<span class="badge b-red">OFFLINE</span>';
+    else if (taxi.status === 'breakdown') badge = '<span class="badge b-red">BREAKDOWN</span>';
+    else if (!connected) badge = '<span class="badge b-orange">UNVERIFIED</span>';
+    else if (taxi.status === 'full' || seats === 0) badge = '<span class="badge b-red">FULL</span>';
+    else badge = `<span class="badge b-green">${seats} seats free</span>`;
+    const operational = taxi.status === 'offline' ? 'Driver has marked this taxi offline'
+      : taxi.status === 'breakdown' ? 'Vehicle reported a breakdown'
+      : !connected ? connectionLabel
+      : taxi.status === 'full' ? 'Full — awaiting departure'
+      : 'Loading passengers';
     return `<div class="taxi-row">
-      <div class="row-header"><strong style="font-size:14px">${escapeHtml(t.driverName || 'Driver')}</strong>${badge}</div>
-      <div class="meta">${status} · ${t.passengersOnboard||0}/${t.capacity||14} onboard</div>
+      <div class="row-header"><strong style="font-size:14px">${escapeHtml(taxi.driverName || 'Driver')}</strong>${badge}</div>
+      <div class="meta">${operational} · ${Number(taxi.passengersOnboard || 0)}/${Number(taxi.capacity || 14)} onboard</div>
+      <div class="meta">Last confirmed: ${timeAgo(taxi.lastUpdated)}</div>
     </div>`;
   }).join('');
 }
@@ -213,31 +240,156 @@ async function sendSignal() {
     alert('Please wait for authentication to complete.');
     return;
   }
+  const pickupPoint = String(document.getElementById('pickupPointInput').value || '').trim().replace(/\s+/g, ' ');
+  if (pickupPoint.length < 2 || pickupPoint.length > 80) {
+    alert('Enter a pickup point between 2 and 80 characters.');
+    return;
+  }
+  const pending = {
+    id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'signal-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+    passengerId: user.uid,
+    route: selectedRoute,
+    pickupPoint,
+    groupSize,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 45 * 60 * 1000
+  };
+  // Persist before attempting the network write so a page reload cannot lose the request.
+  await queuePassengerSignal(pending);
+  if (navigator.onLine) await flushPendingSignals();
+}
 
+async function queuePassengerSignal(pending) {
   try {
-    const waitRef = db.ref('waitingPassengers').push();
-    myWaitId = waitRef.key;
-    const updates = {};
-    updates['waitingPassengers/' + myWaitId] = {
-      route: selectedRoute,
-      groupSize,
-      passengerId: user.uid,
-      timestamp: firebase.database.ServerValue.TIMESTAMP,
-      status: 'waiting'
-    };
-    updates['passengerWaiting/' + user.uid] = myWaitId;
-    await db.ref().update(updates);
-    document.getElementById('waitBtn').style.display = 'none';
+    await TaxiConnectOfflineQueue.put(pending);
+    pendingSignalId = pending.id;
+    const status = document.getElementById('waitStatus');
+    status.textContent = 'Saved on this phone — not sent yet. TaxiConnect will send it when the connection returns.';
+    status.style.display = 'block';
     syncWaitControls();
-    watchMyWaitingSignal();
-    alert('Waiting signal sent successfully.');
   } catch (error) {
-    console.error('signalWaiting failed:', error);
-    alert(error?.message || 'Could not send waiting signal.');
+    console.error('Could not queue passenger request:', error);
+    alert(error?.message || 'This browser cannot save an offline request. Please try again when connected.');
   }
 }
 
+async function publishPassengerSignal(user, pending) {
+  if (!navigator.onLine) throw new Error('No internet connection yet.');
+  if (pending.expiresAt <= Date.now()) throw new Error('This waiting request expired. Please send a new request.');
+
+  const waitRef = db.ref('waitingPassengers').push();
+  const indexRef = db.ref('passengerWaiting/' + user.uid);
+  const currentIndexSnapshot = await indexRef.once('value');
+  const currentIndex = currentIndexSnapshot.val();
+
+  if (currentIndex) {
+    const currentWaitSnapshot = await db.ref('waitingPassengers/' + currentIndex).once('value');
+    const currentWait = currentWaitSnapshot.val();
+    if (currentWait && waitingRequestExpiry(currentWait) > Date.now() && (currentWait.status === 'assigned' || isWaitingRequestActive(currentWait))) {
+      myWaitId = currentIndex;
+      if (pending.id) await TaxiConnectOfflineQueue.remove(pending.id);
+      pendingSignalId = null;
+      syncWaitControls();
+      watchMyWaitingSignal();
+      return;
+    }
+  }
+
+  const claim = await indexRef.transaction(value => {
+    if (value === null || value === currentIndex) return waitRef.key;
+    return;
+  });
+  if (!claim.committed) {
+    const latest = await indexRef.once('value');
+    const existingId = latest.val();
+    const existing = existingId ? (await db.ref('waitingPassengers/' + existingId).once('value')).val() : null;
+    if (existing && waitingRequestExpiry(existing) > Date.now() && (existing.status === 'assigned' || isWaitingRequestActive(existing))) {
+      myWaitId = existingId;
+      if (pending.id) await TaxiConnectOfflineQueue.remove(pending.id);
+      pendingSignalId = null;
+      syncWaitControls();
+      watchMyWaitingSignal();
+      return;
+    }
+    throw new Error('Another waiting request is being registered. Please try again.');
+  }
+
+  try {
+    await waitRef.set({
+      route: pending.route,
+      pickupPoint: pending.pickupPoint,
+      groupSize: pending.groupSize,
+      passengerId: user.uid,
+      timestamp: firebase.database.ServerValue.TIMESTAMP,
+      expiresAt: pending.expiresAt,
+      status: 'waiting'
+    });
+  } catch (error) {
+    const latest = await indexRef.once('value');
+    if (latest.val() === waitRef.key) await indexRef.remove();
+    throw error;
+  }
+
+  if (pending.id) await TaxiConnectOfflineQueue.remove(pending.id);
+  myWaitId = waitRef.key;
+  pendingSignalId = null;
+  syncWaitControls();
+  watchMyWaitingSignal();
+}
+
+async function flushPendingSignals() {
+  const user = firebase.auth().currentUser;
+  if (!user || flushingPendingSignals || !window.TaxiConnectOfflineQueue) return;
+  flushingPendingSignals = true;
+  try {
+    const pendingItems = await TaxiConnectOfflineQueue.all();
+    const ownPending = pendingItems.filter(item => item.passengerId === user.uid);
+    if (ownPending.length) {
+      pendingSignalId = ownPending[0].id;
+      syncWaitControls();
+      const status = document.getElementById('waitStatus');
+      status.textContent = 'Saved on this phone — not sent yet. TaxiConnect will send it when the connection returns.';
+      status.style.display = 'block';
+    }
+    if (!navigator.onLine) return;
+    for (const pending of pendingItems) {
+      if (pending.passengerId !== user.uid) continue;
+      pendingSignalId = pending.id;
+      syncWaitControls();
+      if (pending.expiresAt <= Date.now()) {
+        await TaxiConnectOfflineQueue.remove(pending.id);
+        if (pendingSignalId === pending.id) pendingSignalId = null;
+        continue;
+      }
+      try {
+        await publishPassengerSignal(user, pending);
+      } catch (error) {
+        console.warn('Offline passenger request is still pending:', error);
+        break;
+      }
+    }
+    if (pendingSignalId) {
+      const remaining = await TaxiConnectOfflineQueue.all();
+      if (!remaining.some(item => item.id === pendingSignalId)) pendingSignalId = null;
+    }
+    syncWaitControls();
+  } catch (error) {
+    console.error('Could not sync offline passenger requests:', error);
+  } finally {
+    flushingPendingSignals = false;
+  }
+}
+
+window.addEventListener('online', flushPendingSignals);
+
 async function cancelWaiting() {
+  if (pendingSignalId) {
+    await TaxiConnectOfflineQueue.remove(pendingSignalId);
+    pendingSignalId = null;
+    syncWaitControls();
+    renderWaitStatus(null);
+    return;
+  }
   if (!myWaitId) return;
 
   try {
@@ -286,7 +438,7 @@ async function renderWaitStatus(record) {
       myAssignedTaxiRef.on('value', snapshot => {
         const taxi = snapshot.val();
         if (!taxi || taxi.status === 'offline' || taxi.status === 'breakdown') {
-          el.textContent = '⚠️ Your assigned taxi is unavailable. The conductor can return your group to the waiting queue.';
+          el.textContent = '⚠️ Your assigned taxi is unavailable. The local operator can return your group to the waiting queue.';
           return;
         }
         el.textContent = '🚕 Taxi assigned: ' + (taxi.driverName || 'Driver') +
@@ -301,12 +453,35 @@ async function renderWaitStatus(record) {
   }
   if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
   myAssignedTaxiRef = null;
-  el.textContent = '📢 Your waiting signal is active. The conductor can see your request.';
+  el.textContent = '📢 Your waiting signal is active. The local operator can see your request.';
+}
+
+async function refreshAssignedTaxiConnection() {
+  if (!myWaitId) return;
+  try {
+    const waitSnapshot = await db.ref('waitingPassengers/' + myWaitId).once('value');
+    const request = waitSnapshot.val();
+    if (!request || request.status !== 'assigned' || !request.assignedTaxiId) return;
+    const taxiSnapshot = await db.ref('taxis/' + request.assignedTaxiId).once('value');
+    const taxi = taxiSnapshot.val();
+    const status = document.getElementById('waitStatus');
+    if (!taxi || taxi.status === 'offline' || taxi.status === 'breakdown') return;
+    if (!isTaxiFresh(taxi, allConnections[request.assignedTaxiId])) {
+      status.textContent = '⚠️ A taxi was assigned, but its connection is unverified. Last confirmed ' + timeAgo(taxi.lastUpdated) + '. Please wait for the operator to confirm.';
+    } else {
+      status.textContent = '🚕 Taxi assigned: ' + (taxi.driverName || 'Driver') + ' · ' + routeLabel(taxi.route) + ' · ' +
+        Math.max(0, Number(taxi.capacity || 0) - Number(taxi.passengersOnboard || 0)) + ' seats available.';
+    }
+    status.style.display = 'block';
+  } catch (error) {
+    console.warn('Could not refresh assigned taxi connection state:', error);
+  }
 }
 
 function syncWaitControls() {
-  document.getElementById('waitBtn').style.display = myWaitId ? 'none' : 'block';
-  document.getElementById('cancelBtn').style.display = myWaitId ? 'block' : 'none';
+  const active = Boolean(myWaitId || pendingSignalId);
+  document.getElementById('waitBtn').style.display = active ? 'none' : 'block';
+  document.getElementById('cancelBtn').style.display = active ? 'block' : 'none';
 }
 
 function watchMyWaitingSignal() {
@@ -321,7 +496,7 @@ function watchMyWaitingSignal() {
   myWaitRef = db.ref('waitingPassengers/' + watchedId);
   myWaitRef.on('value', async snapshot => {
     const record = snapshot.val();
-    if (!record || record.passengerId !== user.uid) {
+    if (!record || record.passengerId !== user.uid || (record.status === 'waiting' && !isWaitingRequestActive(record))) {
       if (myWaitId === watchedId) myWaitId = null;
       syncWaitControls();
       renderWaitStatus(null);

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TaxiConnect — Conductor</title>
+<title>TaxiConnect — Operator / Dispatcher</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"
         integrity="sha384-sEVIly94UBRLKWdkYoPpSG7GD/e79YHMrxVyZaOk712Ga7+EAw6w1EFi+xBzBdd+"
         crossorigin="anonymous"></script>
@@ -70,7 +70,7 @@
 </head>
 <body>
 <header>
-  <h1>🎛 TaxiConnect — Conductor</h1>
+  <h1>🎛 TaxiConnect — Operator / Dispatcher</h1>
   <a class="btn-link" href="/" aria-label="Return to TaxiConnect home">← Home</a>
   <button class="btn-link" id="signOutBtn" onclick="signOut()" style="display:none">Sign Out</button>
 </header>
@@ -78,8 +78,8 @@
 <!-- AUTH -->
 <div id="authScreen" class="screen active">
   <div class="card" style="margin-top:20px">
-    <h3>Conductor sign in</h3>
-    <p style="font-size:13px;color:#64748b;margin-bottom:8px">Sign in with your approved conductor account to manage live taxi operations.</p>
+    <h3>Operator / dispatcher sign in</h3>
+    <p style="font-size:13px;color:#64748b;margin-bottom:8px">Sign in with your approved operator account to manage live taxi operations.</p>
     <label for="emailInput" style="display:block;font-size:12px;color:#666;margin-top:8px">Email address</label>
     <input type="email" id="emailInput" autocomplete="username" placeholder="name@example.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:6px" />
     <label for="passwordInput" style="display:block;font-size:12px;color:#666;margin-top:10px">Password</label>
@@ -129,7 +129,7 @@
     </div>
     <div class="card">
       <h3>Cleanup</h3>
-      <p style="font-size:12px;color:#666;margin-bottom:4px">Remove waiting signals older than 4 hours and taxis inactive for 45 minutes.</p>
+      <p style="font-size:12px;color:#666;margin-bottom:4px">Remove expired passenger requests after 45 minutes. Taxi records are preserved when a phone disconnects.</p>
       <button class="btn btn-grey" onclick="cleanupStale()">🧹 Remove Stale Signals</button>
     </div>
   </div>
@@ -148,8 +148,8 @@ if (!window.firebase || typeof firebase.initializeApp !== 'function') throw new 
 const defaultFirebaseApp = firebase.apps.find(app => app.name === '[DEFAULT]')
   || firebase.initializeApp(window.FIREBASE_CONFIG);
 const db = firebase.database(defaultFirebaseApp);
-let allTaxis = {}, allWaiting = {};
-let subscribed = false;
+let allTaxis = {}, allWaiting = {}, allConnections = {};
+let subscribed = false, lastDemandSignature = null, demandRefreshTimer = null;
 
 // ── Auth ──────────────────────────────────────────────────────────
 // Conductor access uses Firebase Email/Password plus server-issued custom claims.
@@ -209,6 +209,9 @@ async function resetPassword() {
 async function signOut() {
   db.ref('taxis').off('value');
   db.ref('waitingPassengers').off('value');
+  db.ref('taxiConnections').off('value');
+  if (demandRefreshTimer) window.clearInterval(demandRefreshTimer);
+  demandRefreshTimer = null;
   subscribed = false;
   try {
     await firebase.auth().signOut();
@@ -240,7 +243,7 @@ firebase.auth().onAuthStateChanged(async user => {
     sessionStorage.removeItem('tc_role');
     sessionStorage.removeItem('tc_name');
     await firebase.auth().signOut();
-    showErr('This account does not have conductor access. Please sign in again.');
+    showErr('This account does not have operator access. Please sign in again.');
     show('authScreen');
   }
 });
@@ -250,27 +253,49 @@ function subscribe() {
   subscribed = true;
   db.ref('taxis').on('value', s => { allTaxis = s.val() || {}; renderAll(); }, error => showErr(error.message));
   db.ref('waitingPassengers').on('value', s => { allWaiting = s.val() || {}; renderAll(); }, error => showErr(error.message));
+  db.ref('taxiConnections').on('value', s => { allConnections = s.val() || {}; renderAll(); }, error => { console.error('Taxi connection subscription failed:', error); allConnections = {}; renderAll(); });
+  if (!demandRefreshTimer) demandRefreshTimer = window.setInterval(renderAll, 30000);
 }
 
 function renderAll() {
   renderDemand(); renderTaxis(); renderWaiting(); renderAlert();
+  publishDemandSummary();
+}
+
+async function publishDemandSummary() {
+  const groups = demandByPickup(allWaiting);
+  const signature = JSON.stringify(groups.map(group => ({ route: group.route, pickupPoint: group.pickupPoint, people: group.people, requests: group.requests, expiresAt: group.expiresAt })));
+  if (signature === lastDemandSignature) return;
+  const summary = {};
+  groups.forEach(group => {
+    const key = encodeURIComponent(group.route + '-' + group.pickupPoint.toLowerCase()).replaceAll('.', '%2E');
+    summary[key] = { route: group.route, pickupPoint: group.pickupPoint, people: group.people, requests: group.requests, expiresAt: group.expiresAt };
+  });
+  try {
+    await db.ref('routeDemand').set(summary);
+    lastDemandSignature = signature;
+  } catch (error) {
+    console.error('Could not publish aggregated passenger demand:', error);
+  }
 }
 
 function renderDemand() {
   const stats = { SUN_CITY: { taxis:0, waiting:0, seats:0 }, RUSTENBURG: { taxis:0, waiting:0, seats:0 } };
-  Object.values(allTaxis).forEach(t => {
-    if (!stats[t.route] || t.status === 'offline') return;
-    stats[t.route].taxis++;
-    stats[t.route].seats += Math.max(0, (t.capacity||14) - (t.passengersOnboard||0));
+  Object.entries(allTaxis).forEach(([id, taxi]) => {
+    if (!stats[taxi.route] || taxi.status === 'offline' || taxi.status === 'breakdown' || !isTaxiFresh(taxi, allConnections[id])) return;
+    stats[taxi.route].taxis++;
+    stats[taxi.route].seats += Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0));
   });
-  Object.values(allWaiting).forEach(w => { if (stats[w.route]) stats[w.route].waiting += (w.groupSize||1); });
-  document.getElementById('demandOverview').innerHTML = Object.entries(stats).map(([r,v]) => `
+  Object.values(allWaiting).forEach(wait => {
+    if (stats[wait.route] && isWaitingRequestActive(wait)) stats[wait.route].waiting += Number(wait.groupSize || 1);
+  });
+  document.getElementById('demandOverview').innerHTML = Object.entries(stats).map(([route, value]) => `
     <div class="demand-row">
-      <span style="font-weight:600">${routeLabel(r)}</span>
+      <span style="font-weight:600">${routeLabel(route)}</span>
       <span>
-        <span class="badge b-blue">🚕 ${v.taxis}</span>
-        <span class="badge b-needs" style="margin-left:4px">👥 ${v.waiting}</span>
-        ${v.taxis ? `<span class="badge" style="margin-left:4px;background:#e2e3e5;color:#383d41">🪑 ${v.seats}</span>` : ''}
+        <span class="badge b-blue">🚕 ${value.taxis}</span>
+        <span class="badge b-needs" style="margin-left:4px">👥 ${value.waiting}</span>
+        ${value.taxis ? `<span class="badge" style="margin-left:4px;background:#e2e3e5;color:#383d41">🪑 ${value.seats}</span>` : ''}
       </span>
     </div>`).join('');
 }
@@ -278,20 +303,24 @@ function renderDemand() {
 function renderTaxis() {
   const el = document.getElementById('taxiList');
   const entries = Object.entries(allTaxis);
-  if (!entries.length) { el.innerHTML = '<div class="empty">No active taxis.</div>'; return; }
+  if (!entries.length) { el.innerHTML = '<div class="empty">No taxi updates yet.</div>'; return; }
   el.innerHTML = ['SUN_CITY','RUSTENBURG'].map(route => {
-    const taxis = entries.filter(([,t]) => t.route === route);
-    const rows = taxis.length ? taxis.map(([id,t]) => {
-      const needed = (t.capacity||14) - (t.passengersOnboard||0);
-      const badge = t.status === 'offline' ? `<span class="badge b-breakdown">Offline</span>`
-        : t.status === 'breakdown' ? `<span class="badge b-breakdown">⚠️ Breakdown</span>`
-        : needed <= 0 ? `<span class="badge b-full">✅ Full</span>`
+    const taxis = entries.filter(([, taxi]) => taxi.route === route);
+    const rows = taxis.length ? taxis.map(([id, taxi]) => {
+      const needed = Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0));
+      const connected = isTaxiFresh(taxi, allConnections[id]);
+      const connection = taxiConnectionLabel(taxi, allConnections[id]);
+      const badge = taxi.status === 'offline' ? '<span class="badge b-breakdown">Offline</span>'
+        : taxi.status === 'breakdown' ? '<span class="badge b-breakdown">⚠️ Breakdown</span>'
+        : !connected ? '<span class="badge b-breakdown">Connection lost</span>'
+        : taxi.status === 'full' || needed === 0 ? '<span class="badge b-full">Full</span>'
         : `<span class="badge b-needs">Needs ${needed}</span>`;
       return `<div class="taxi-row">
-        <div class="row-header"><strong style="font-size:13px">${escapeHtml(t.driverName || "Driver")}</strong>${badge}</div>
-        <div class="meta">${t.passengersOnboard||0}/${t.capacity||14} onboard · ${timeAgo(t.lastUpdated)}</div>
+        <div class="row-header"><strong style="font-size:13px">${escapeHtml(taxi.driverName || "Driver")}</strong>${badge}</div>
+        <div class="meta">${taxi.passengersOnboard || 0}/${taxi.capacity || 14} onboard · ${timeAgo(taxi.lastUpdated)}</div>
+        <div class="meta">${escapeHtml(connection)}</div>
         <div class="action-row">
-          ${t.status === 'offline' ? '' : `<button onclick="setStatus('${id}','departed')" style="background:#007bff;color:#fff">🚗 Depart</button><button onclick="setStatus('${id}','breakdown')" style="background:#dc3545;color:#fff">⚠️ Breakdown</button>`}
+          ${taxi.status === 'offline' || taxi.status === 'departed' ? '' : `<button onclick="setStatus('${id}','departed')" style="background:#007bff;color:#fff">🚗 Depart</button><button onclick="setStatus('${id}','breakdown')" style="background:#dc3545;color:#fff">⚠️ Breakdown</button>`}
           <button onclick="removeTaxi('${id}')" style="background:#6c757d;color:#fff">🗑 Remove</button>
         </div>
       </div>`;
@@ -302,20 +331,18 @@ function renderTaxis() {
 
 function renderWaiting() {
   const el = document.getElementById('waitingList');
-  const entries = Object.entries(allWaiting);
-  if (!entries.length) { el.innerHTML = '<div class="empty">No passengers waiting.</div>'; return; }
+  const entries = Object.entries(allWaiting).filter(([, wait]) => waitingRequestExpiry(wait) > Date.now());
+  if (!entries.length) { el.innerHTML = '<div class="empty">No active passenger requests.</div>'; return; }
   el.innerHTML = entries.map(([id,w]) => {
     const matchingTaxis = Object.entries(allTaxis).filter(([taxiId,taxi]) => {
-      const alreadyAssigned = Object.values(allWaiting)
-        .filter(passenger => passenger.assignedTaxiId === taxiId)
-        .reduce((total, passenger) => total + Number(passenger.groupSize || 1), 0);
+      const alreadyAssigned = assignedSeatsForTaxi(allWaiting, taxiId);
       const freeSeats = Number(taxi.capacity || 14) -
         Number(taxi.passengersOnboard || 0) - alreadyAssigned;
       return taxi.route === w.route && taxi.status !== 'breakdown' && taxi.status !== 'offline' &&
-        freeSeats >= Number(w.groupSize || 1);
+        isTaxiFresh(taxi, allConnections[taxiId]) && freeSeats >= Number(w.groupSize || 1);
     });
     const assignedTaxi = w.assignedTaxiId ? allTaxis[w.assignedTaxiId] : null;
-    const assignment = w.status === 'assigned' && (!assignedTaxi || assignedTaxi.status === 'offline' || assignedTaxi.status === 'breakdown')
+    const assignment = w.status === 'assigned' && (!assignedTaxi || assignedTaxi.status === 'offline' || assignedTaxi.status === 'breakdown' || !isTaxiFresh(assignedTaxi, allConnections[w.assignedTaxiId]))
       ? '<div class="meta" style="color:#b45309;font-weight:700">Taxi unavailable — this group needs reassignment</div>' +
         '<button onclick="requeueAssignment(\'' + escapeHtml(id) + '\')" style="margin-top:6px;padding:7px 10px;border:0;border-radius:7px;background:#b45309;color:#fff;font-weight:700;cursor:pointer">Return to waiting queue</button>'
       : w.status === 'assigned'
@@ -335,7 +362,7 @@ function renderWaiting() {
         <span style="font-size:13px;font-weight:600">${routeLabel(w.route)}</span>
         <span class="badge b-needs">👥 ${w.groupSize||1}</span>
       </div>
-      <div class="meta">⏱ ${timeAgo(w.timestamp)}</div>
+      <div class="meta">📍 ${escapeHtml(w.pickupPoint || 'Pickup point not specified')} · ⏱ ${timeAgo(w.timestamp)} · expires ${timeAgo(waitingRequestExpiry(w)) === 'just now' ? 'soon' : 'in ' + Math.max(1, Math.ceil((waitingRequestExpiry(w) - Date.now()) / 60000)) + ' min'}</div>
       ${assignment}
       <button onclick="dismiss('${id}')" style="margin-top:8px;padding:4px 10px;border:none;border-radius:6px;background:#6c757d;color:#fff;font-size:11px;font-weight:600;cursor:pointer">Clear signal</button>
     </div>`;
@@ -343,11 +370,15 @@ function renderWaiting() {
 }
 
 function renderAlert() {
-  const total = Object.values(allWaiting).reduce((s,w) => s + (w.groupSize||1), 0);
+  const groups = demandByPickup(allWaiting);
+  const total = groups.reduce((sum, group) => sum + group.people, 0);
   const el = document.getElementById('demandAlert');
-  if (total >= 3) {
+  if (total >= 1) {
     el.className = 'alert a-danger'; el.style.display = 'block';
-    el.innerHTML = `🔥 <strong>${total} passengers waiting!</strong> Alert drivers now.`;
+    el.innerHTML = '<strong>Passenger demand by pickup point</strong>' + groups.map(group =>
+      '<div class="demand-row"><span>' + escapeHtml(routeLabel(group.route)) + ' · ' + escapeHtml(group.pickupPoint) +
+      '</span><strong>' + group.people + ' waiting</strong></div>'
+    ).join('');
   } else el.style.display = 'none';
 }
 
@@ -369,6 +400,7 @@ async function setStatus(id, status) {
         statusUpdatedBy: firebase.auth().currentUser.uid
       };
       updates['taxis/' + id] = null;
+      updates['taxiConnections/' + id] = null;
 
       for (const [waitId, passenger] of Object.entries(allWaiting)) {
         if (passenger?.assignedTaxiId === id) {
@@ -411,6 +443,7 @@ async function removeTaxi(id) {
     if (!snapshot.exists()) return;
     const updates = {};
     updates['taxis/' + id] = null;
+    updates['taxiConnections/' + id] = null;
     for (const [waitId, passenger] of Object.entries(allWaiting)) {
       if (passenger?.assignedTaxiId === id) {
         updates['waitingPassengers/' + waitId + '/status'] = 'waiting';
@@ -439,13 +472,12 @@ async function assignTaxi(waitId) {
 
     const taxiSnap = await db.ref('taxis/' + taxiId).once('value');
     const taxi = taxiSnap.val();
-    const assignedSeats = Object.values(allWaiting)
-      .filter(item => item.assignedTaxiId === taxiId && item.status === 'assigned')
-      .reduce((total, item) => total + Number(item.groupSize || 1), 0);
+    const assignedSeats = assignedSeatsForTaxi(allWaiting, taxiId);
     const freeSeats = taxi
       ? Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0) - assignedSeats
       : 0;
-    if (!taxi || taxi.route !== passenger.route || taxi.status === 'breakdown' ||
+    if (!taxi || taxi.route !== passenger.route || taxi.status === 'breakdown' || taxi.status === 'offline' ||
+        !isTaxiFresh(taxi, allConnections[taxiId]) || waitingRequestExpiry(passenger) <= Date.now() ||
         freeSeats < Number(passenger.groupSize || 1)) {
       throw new Error('That taxi does not have enough unreserved seats. Refresh and choose another.');
     }
@@ -497,11 +529,8 @@ async function cleanupStale() {
   try {
     const now = Date.now();
     const updates = {};
-    const waitingCutoff = now - 4 * 60 * 60 * 1000;
-    const taxiCutoff = now - 45 * 60 * 1000;
-
     for (const [id, passenger] of Object.entries(allWaiting)) {
-      if (Number(passenger?.timestamp || 0) < waitingCutoff) {
+      if (waitingRequestExpiry(passenger) <= now) {
         updates['waitingPassengers/' + id] = null;
         if (passenger.passengerId) {
           const index = await db.ref('passengerWaiting/' + passenger.passengerId).once('value');
@@ -509,18 +538,12 @@ async function cleanupStale() {
         }
       }
     }
-
-    for (const [id, taxi] of Object.entries(allTaxis)) {
-      if (Number(taxi?.lastUpdated || 0) < taxiCutoff) {
-        updates['taxis/' + id] = null;
-      }
-    }
-
+    // Never delete a taxi merely because its phone stopped reporting. Connection state is separate.
     if (Object.keys(updates).length) await db.ref().update(updates);
-    alert('Cleanup complete. ' + Object.keys(updates).filter(path => path.startsWith('waitingPassengers/')).length + ' waiting records and stale taxi records were processed.');
+    alert('Cleanup complete. Expired passenger requests were removed; taxi records were preserved.');
   } catch (error) {
     console.error('cleanup failed:', error);
-    alert(error?.message || 'Could not clean stale records.');
+    alert(error?.message || 'Could not clean expired requests.');
   }
 }
 
@@ -530,7 +553,7 @@ function requestNotificationPermission() {
 }
 
 async function notifyRoute(route) {
-  const waiting = Object.values(allWaiting).filter(item => item.route === route);
+  const waiting = Object.values(allWaiting).filter(item => item.route === route && isWaitingRequestActive(item));
   const count = Math.min(200, waiting.reduce((sum, item) => sum + Number(item.groupSize || 1), 0));
   if (!count) {
     alert('No waiting passengers for this route.');

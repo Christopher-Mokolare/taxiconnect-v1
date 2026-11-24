@@ -136,6 +136,7 @@ const defaultFirebaseApp = firebase.apps.find(app => app.name === '[DEFAULT]')
 const db = firebase.database(defaultFirebaseApp);
 let selectedRoute = 'SUN_CITY', capacity = 14, onboard = 0, liveOnboard = 0;
 let myTaxiId = null, myCapacity = 14, summonsRef = null, heartbeatTimer = null;
+let connectionRef = null, connectionSessionId = null, connectionListener = null, demandRef = null, currentRouteDemand = {}, demandRefreshTimer = null;
 
 // ── Auth ──────────────────────────────────────────────────────────
 let driverName = '';
@@ -205,6 +206,10 @@ async function signOut() {
   }
   sessionStorage.removeItem('tc_role');
   sessionStorage.removeItem('tc_name');
+  if (demandRef) demandRef.off('value');
+  demandRef = null;
+  if (demandRefreshTimer) window.clearInterval(demandRefreshTimer);
+  demandRefreshTimer = null;
   await firebase.auth().signOut();
   document.getElementById('signOutBtn').style.display = 'none';
   show('authScreen');
@@ -278,17 +283,46 @@ async function restoreMyTaxi() {
 function listenForSummons() {
   if (summonsRef) summonsRef.off('value');
   summonsRef = db.ref(`summons/${selectedRoute}`);
+  listenForRouteDemand();
   summonsRef.on('value', snap => {
     const s = snap.val();
     if (!s || Date.now() - s.timestamp > 5 * 60 * 1000) return;
     const banner = document.getElementById('summonBanner');
-    banner.textContent = `🚨 Conductor needs drivers → ${ROUTES[selectedRoute].label}! ${s.count} passengers waiting.`;
+    banner.textContent = `🚨 Operator needs drivers → ${ROUTES[selectedRoute].label}! ${s.count} passengers waiting.`;
     banner.style.display = 'block';
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('🚨 TaxiConnect', { body: `${s.count} passengers waiting for ${ROUTES[selectedRoute].label}. Go live now!` });
     }
     setTimeout(() => { banner.style.display = 'none'; }, 30000);
   });
+}
+
+function listenForRouteDemand() {
+  if (demandRef) demandRef.off('value');
+  demandRef = db.ref('routeDemand');
+  demandRef.on('value', snapshot => {
+    currentRouteDemand = snapshot.val() || {};
+    renderRouteDemand();
+  }, error => {
+    console.error('Could not load passenger demand:', error);
+  });
+  if (!demandRefreshTimer) demandRefreshTimer = window.setInterval(renderRouteDemand, 30000);
+}
+
+function renderRouteDemand() {
+  const banner = document.getElementById('summonBanner');
+  const groups = Object.values(currentRouteDemand).filter(item =>
+    item.route === selectedRoute && Number(item.expiresAt || 0) > Date.now()
+  );
+  if (!groups.length) {
+    if (banner.dataset.kind === 'demand') banner.style.display = 'none';
+    return;
+  }
+  const total = groups.reduce((sum, item) => sum + Number(item.people || 0), 0);
+  const stops = groups.map(item => item.pickupPoint + ': ' + item.people).join(' · ');
+  banner.dataset.kind = 'demand';
+  banner.textContent = '📍 ' + total + ' passengers waiting for ' + routeLabel(selectedRoute) + ' — ' + stops;
+  banner.style.display = 'block';
 }
 
 function requestNotificationPermission() {
@@ -330,7 +364,7 @@ function selectRoute(r) {
   selectedRoute = r;
   document.getElementById('drv-sun').classList.toggle('sel', r === 'SUN_CITY');
   document.getElementById('drv-rust').classList.toggle('sel', r === 'RUSTENBURG');
-  if (firebase.auth().currentUser && sessionStorage.getItem('tc_role') === 'driver') listenForSummons();
+  if (firebase.auth().currentUser && sessionStorage.getItem('tc_role') === 'driver') { listenForSummons(); renderRouteDemand(); }
 }
 
 // ── Go Live / Offline ─────────────────────────────────────────────
@@ -413,6 +447,7 @@ async function goOffline() {
     throw new Error('You do not own this taxi.');
   }
   if (taxi) await ref.update({ status: 'offline', lastUpdated: firebase.database.ServerValue.TIMESTAMP });
+  await stopTaxiConnection();
   stopHeartbeat();
   myTaxiId = null;
   onboard = 0;
@@ -423,10 +458,54 @@ async function goOffline() {
   document.getElementById('liveCard').style.display = 'none';
 }
 
+async function registerTaxiConnection() {
+  const user = firebase.auth().currentUser;
+  if (!user || !myTaxiId) return;
+  if (!connectionSessionId) connectionSessionId = db.ref('taxiConnections/' + myTaxiId).push().key;
+  if (!connectionRef) connectionRef = db.ref('taxiConnections/' + myTaxiId + '/' + connectionSessionId);
+  if (!connectionListener) connectionListener = db.ref('.info/connected');
+
+  connectionListener.off('value');
+  connectionListener.on('value', async snapshot => {
+    if (snapshot.val() !== true || !connectionRef) return;
+    try {
+      // Register the server-side cleanup before publishing this session as connected.
+      await connectionRef.onDisconnect().remove();
+      await connectionRef.set({
+        connectedAt: firebase.database.ServerValue.TIMESTAMP,
+        lastSeen: firebase.database.ServerValue.TIMESTAMP
+      });
+    } catch (error) {
+      console.error('Could not register taxi connection presence:', error);
+    }
+  });
+}
+
+async function stopTaxiConnection() {
+  if (connectionListener) connectionListener.off('value');
+  connectionListener = null;
+  if (connectionRef) {
+    try {
+      await connectionRef.onDisconnect().cancel();
+    } catch (error) {
+      console.warn('Could not cancel server disconnect cleanup:', error);
+    }
+    try {
+      await connectionRef.remove();
+    } catch (error) {
+      console.error('Could not clear taxi connection presence:', error);
+    }
+  }
+  connectionRef = null;
+  connectionSessionId = null;
+}
+
 function startHeartbeat() {
   stopHeartbeat();
   if (!myTaxiId) return;
+  registerTaxiConnection();
   heartbeatTimer = window.setInterval(async () => {
+    renderRouteDemand();
     const user = firebase.auth().currentUser;
     if (!user || !myTaxiId) return;
     try {
@@ -435,17 +514,20 @@ function startHeartbeat() {
       const taxi = snapshot.val();
       if (!taxi || taxi.driverId !== user.uid) {
         stopHeartbeat();
+        await stopTaxiConnection();
         myTaxiId = null;
         document.getElementById('checkInCard').style.display = 'block';
         document.getElementById('liveCard').style.display = 'none';
         return;
       }
-      await ref.update({ lastUpdated: firebase.database.ServerValue.TIMESTAMP });
-      await db.ref('drivers/' + user.uid + '/lastSeen').set(firebase.database.ServerValue.TIMESTAMP);
+      const writes = [ref.update({ lastUpdated: firebase.database.ServerValue.TIMESTAMP }),
+        db.ref('drivers/' + user.uid + '/lastSeen').set(firebase.database.ServerValue.TIMESTAMP)];
+      if (connectionRef) writes.push(connectionRef.update({ lastSeen: firebase.database.ServerValue.TIMESTAMP }));
+      await Promise.all(writes);
     } catch (error) {
       console.error('Driver heartbeat failed:', error);
     }
-  }, 5 * 60 * 1000);
+  }, 30 * 1000);
 }
 
 function stopHeartbeat() {
