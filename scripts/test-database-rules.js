@@ -76,7 +76,12 @@ async function main() {
       expiresAt: Date.now() + 45 * 60 * 1000,
       status: "waiting"
     };
+    await assertSucceeds(set(ref(passengerDb, "passengerWaiting/passenger-1"), "wait-1"));
     await assertSucceeds(set(ref(passengerDb, "waitingPassengers/wait-1"), ownWait));
+    await assertFails(set(ref(passengerDb, "waitingPassengers/wait-duplicate"), {
+      ...ownWait,
+      pickupPoint: "Another stop"
+    }));
     await assertSucceeds(get(ref(passengerDb, "waitingPassengers/wait-1")));
     await assertFails(get(ref(passengerDb, "waitingPassengers/otherWait")));
     await assertFails(get(ref(passengerDb, "waitingPassengers")));
@@ -84,9 +89,9 @@ async function main() {
       ...ownWait,
       passengerId: "passenger-2"
     }));
-    await assertSucceeds(set(ref(passengerDb, "passengerWaiting/passenger-1"), "wait-1"));
     await assertFails(set(ref(passengerDb, "passengerWaiting/passenger-2"), "wait-1"));
     await assertSucceeds(remove(ref(passengerDb, "waitingPassengers/wait-1")));
+    await assertSucceeds(remove(ref(passengerDb, "passengerWaiting/passenger-1")));
 
     const ownTaxi = {
       driverId: "driver-1",
