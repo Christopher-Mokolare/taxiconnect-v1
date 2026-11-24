@@ -206,10 +206,34 @@ function adjGroup(d) {
 }
 
 // ── Waiting signal ────────────────────────────────────────────────
+function waitForPassengerAuth(timeoutMs = 15000) {
+  const current = firebase.auth().currentUser;
+  if (current) return Promise.resolve(current);
+  return new Promise((resolve, reject) => {
+    let unsubscribe = () => {};
+    const timer = setTimeout(() => {
+      unsubscribe();
+      reject(new Error('Passenger sign-in is taking too long. Please try again.'));
+    }, timeoutMs);
+    unsubscribe = firebase.auth().onAuthStateChanged(user => {
+      if (!user) return;
+      clearTimeout(timer);
+      unsubscribe();
+      resolve(user);
+    }, error => {
+      clearTimeout(timer);
+      unsubscribe();
+      reject(error);
+    });
+  });
+}
+
 async function sendSignal() {
-  const user = firebase.auth().currentUser;
-  if (!user) {
-    alert('Please wait for authentication to complete.');
+  let user;
+  try {
+    user = await waitForPassengerAuth();
+  } catch (error) {
+    alert(error.message || 'Passenger sign-in is unavailable. Please try again.');
     return;
   }
 
@@ -227,6 +251,9 @@ async function sendSignal() {
     updates['passengerWaiting/' + user.uid] = myWaitId;
     await db.ref().update(updates);
     document.getElementById('waitBtn').style.display = 'none';
+    const status = document.getElementById('waitStatus');
+    status.style.display = 'block';
+    status.textContent = '📢 Your waiting signal is active. The conductor can see your request.';
     syncWaitControls();
     watchMyWaitingSignal();
     alert('Waiting signal sent successfully.');
@@ -375,6 +402,11 @@ function watchMyWaitingSignal() {
       return;
     }
     await renderWaitStatus(record);
+  }, error => {
+    console.error('Waiting signal listener failed:', error);
+    const status = document.getElementById('waitStatus');
+    status.style.display = 'block';
+    status.textContent = 'Your waiting signal was sent, but live updates are unavailable. Please ask the operator for help.';
   });
 }
 
