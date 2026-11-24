@@ -468,8 +468,11 @@ async function refreshAssignedTaxiConnection() {
     if (!taxi || taxi.status === 'offline' || taxi.status === 'breakdown') return;
     if (!isTaxiFresh(taxi, allConnections[request.assignedTaxiId])) {
       status.textContent = '⚠️ A taxi was assigned, but its connection is unverified. Last confirmed ' + timeAgo(taxi.lastUpdated) + '. Please wait for the operator to confirm.';
-      status.style.display = 'block';
+    } else {
+      status.textContent = '🚕 Taxi assigned: ' + (taxi.driverName || 'Driver') + ' · ' + routeLabel(taxi.route) + ' · ' +
+        Math.max(0, Number(taxi.capacity || 0) - Number(taxi.passengersOnboard || 0)) + ' seats available.';
     }
+    status.style.display = 'block';
   } catch (error) {
     console.warn('Could not refresh assigned taxi connection state:', error);
   }
