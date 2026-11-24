@@ -18,6 +18,10 @@ const requiredPages = [
   "functions/scripts/seed-test-data.js",
   "scripts/test-database-rules.js",
   "scripts/deploy.sh",
+  "tests/e2e/playwright.config.js",
+  "tests/e2e/taxiconnect-dev.spec.js",
+  "tests/e2e/assignment-flow.spec.js",
+  ".github/workflows/playwright-dev-acceptance.yml",
 ];
 const errors = [];
 
@@ -110,7 +114,7 @@ const databaseRules = JSON.parse(fs.readFileSync(path.join(root, "database.rules
 if (databaseRules[".read"] !== false || databaseRules[".write"] !== false) {
   errors.push("Realtime Database root access must remain denied by default.");
 }
-if (!databaseRules.taxis || !databaseRules.waitingPassengers || !databaseRules.passengerWaiting || !databaseRules.summons) {
+if (!databaseRules.taxis || !databaseRules.waitingPassengers || !databaseRules.passengerWaiting || !databaseRules.summons || !databaseRules.taxiAssignments) {
   errors.push("Required role-protected Realtime Database paths are missing.");
 }
 
