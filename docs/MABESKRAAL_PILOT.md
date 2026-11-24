@@ -6,7 +6,7 @@ TaxiConnect is a coordination tool for existing local taxi operators. It is not 
 
 ## Pilot scope
 
-- Begin with one locally verified route and two or three participating drivers.
+- A functional demonstration can use one taxi, one driver, one passenger device and one operator device. For a real pilot, begin with one locally verified route and two or three participating drivers.
 - Confirm the route, destinations, actual pickup points, service days, operating times, vehicle capacities and fares with drivers and the relevant taxi association before enabling it for real passengers.
 - Do not treat the existing Sun City and Rustenburg sample routes as verified Mabeskraal services.
 - Cash remains supported. No in-app payment or compulsory booking is required.
