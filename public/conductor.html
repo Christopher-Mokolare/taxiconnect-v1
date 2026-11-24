@@ -129,7 +129,7 @@
     </div>
     <div class="card">
       <h3>Cleanup</h3>
-      <p style="font-size:12px;color:#666;margin-bottom:4px">Remove waiting signals older than 4 hours and taxis inactive for 45 minutes.</p>
+      <p style="font-size:12px;color:#666;margin-bottom:4px">Remove expired passenger requests after 45 minutes. Taxi records are preserved when a phone disconnects.</p>
       <button class="btn btn-grey" onclick="cleanupStale()">🧹 Remove Stale Signals</button>
     </div>
   </div>
@@ -335,9 +335,7 @@ function renderWaiting() {
   if (!entries.length) { el.innerHTML = '<div class="empty">No active passenger requests.</div>'; return; }
   el.innerHTML = entries.map(([id,w]) => {
     const matchingTaxis = Object.entries(allTaxis).filter(([taxiId,taxi]) => {
-      const alreadyAssigned = Object.values(allWaiting)
-        .filter(passenger => passenger.assignedTaxiId === taxiId)
-        .reduce((total, passenger) => total + Number(passenger.groupSize || 1), 0);
+      const alreadyAssigned = assignedSeatsForTaxi(allWaiting, taxiId);
       const freeSeats = Number(taxi.capacity || 14) -
         Number(taxi.passengersOnboard || 0) - alreadyAssigned;
       return taxi.route === w.route && taxi.status !== 'breakdown' && taxi.status !== 'offline' &&
@@ -474,9 +472,7 @@ async function assignTaxi(waitId) {
 
     const taxiSnap = await db.ref('taxis/' + taxiId).once('value');
     const taxi = taxiSnap.val();
-    const assignedSeats = Object.values(allWaiting)
-      .filter(item => item.assignedTaxiId === taxiId && item.status === 'assigned')
-      .reduce((total, item) => total + Number(item.groupSize || 1), 0);
+    const assignedSeats = assignedSeatsForTaxi(allWaiting, taxiId);
     const freeSeats = taxi
       ? Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0) - assignedSeats
       : 0;
