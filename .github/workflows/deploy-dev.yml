@@ -1,9 +1,6 @@
 name: Deploy TaxiConnect development
 
 on:
-  push:
-    branches:
-      - feat/v1-product-completion
   workflow_dispatch:
 
 permissions:
