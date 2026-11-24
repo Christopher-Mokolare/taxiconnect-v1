@@ -108,6 +108,10 @@
 
   <div id="liveCard" class="card" style="display:none;margin-top:10px">
     <h3>You Are Live</h3>
+    <div class="card" id="assignedGroupsCard" style="margin:10px 0 14px;padding:12px;border:1px solid #e6ebf1">
+      <h3>Passenger groups assigned to this taxi</h3>
+      <div id="assignedGroupsList" aria-live="polite"><div class="empty">No groups assigned yet.</div></div>
+    </div>
     <div id="liveInfo"></div>
     <label style="font-size:12px;color:#666;margin-top:14px;display:block;font-weight:600">Update Passengers Onboard</label>
     <div class="counter-wrap" style="margin-top:8px">
@@ -130,6 +134,7 @@ firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 let selectedRoute = 'SUN_CITY', capacity = 14, onboard = 0, liveOnboard = 0;
 let myTaxiId = null, myCapacity = 14, summonsRef = null, heartbeatTimer = null;
+let assignmentsRef = null, assignedGroups = {};
 
 // ── Auth ──────────────────────────────────────────────────────────
 let driverName = '';
@@ -257,6 +262,63 @@ async function restoreMyTaxi() {
   document.getElementById('drv-sun').classList.toggle('sel', selectedRoute === 'SUN_CITY');
   document.getElementById('drv-rust').classList.toggle('sel', selectedRoute === 'RUSTENBURG');
   startHeartbeat();
+  watchAssignedGroups();
+}
+
+// ── Assigned passenger groups
+function stopWatchingAssignedGroups() {
+  if (assignmentsRef) assignmentsRef.off('value');
+  assignmentsRef = null;
+  assignedGroups = {};
+  renderAssignedGroups();
+}
+
+function watchAssignedGroups() {
+  stopWatchingAssignedGroups();
+  if (!myTaxiId) return;
+  assignmentsRef = db.ref('taxiAssignments/' + myTaxiId);
+  assignmentsRef.on('value', snapshot => {
+    assignedGroups = snapshot.val() || {};
+    renderAssignedGroups();
+  }, error => {
+    console.error('Assigned passenger groups could not be loaded:', error);
+    document.getElementById('assignedGroupsList').textContent = 'Could not load assigned groups. Please refresh.';
+  });
+}
+
+function renderAssignedGroups() {
+  const el = document.getElementById('assignedGroupsList');
+  if (!el) return;
+  const entries = Object.entries(assignedGroups);
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty">No groups assigned yet. Wait for the conductor to assign a passenger group.</div>';
+    return;
+  }
+  el.innerHTML = entries.map(([waitId, group]) => {
+    const pickedUp = group.status === 'pickedUp';
+    return '<div class="taxi-row" data-testid="driver-assigned-group" data-wait-id="' + escapeHtml(waitId) + '">' +
+      '<div class="row-header"><strong>Group #' + escapeHtml(group.groupCode || waitId.slice(-6).toUpperCase()) + '</strong>' +
+      '<span class="badge ' + (pickedUp ? 'b-green' : 'b-orange') + '">' + (pickedUp ? 'PICKED UP' : 'AWAITING PICKUP') + '</span></div>' +
+      '<div class="meta">' + escapeHtml(routeLabel(group.route)) + ' · ' + Number(group.groupSize || 1) + ' passenger(s)</div>' +
+      (pickedUp ? '<div class="meta" style="color:#146c43;font-weight:700">Pickup confirmed.</div>' :
+        '<button type="button" class="btn btn-blue" style="margin-top:8px" onclick="confirmGroupPickup(\'' + escapeHtml(waitId) + '\')">Confirm pickup</button>') +
+      '</div>';
+  }).join('');
+}
+
+async function confirmGroupPickup(waitId) {
+  if (!myTaxiId || !assignedGroups[waitId]) return;
+  const group = assignedGroups[waitId];
+  if (group.status !== 'assigned') return;
+  try {
+    await db.ref('taxiAssignments/' + myTaxiId + '/' + waitId).update({
+      status: 'pickedUp',
+      pickedUpAt: firebase.database.ServerValue.TIMESTAMP
+    });
+  } catch (error) {
+    console.error('Pickup confirmation failed:', error);
+    alert(error?.message || 'Could not confirm this pickup.');
+  }
 }
 
 // ── Summon listener ───────────────────────────────────────────────
@@ -357,6 +419,7 @@ async function goLive() {
     document.getElementById('checkInCard').style.display = 'none';
     document.getElementById('liveCard').style.display = 'block';
     startHeartbeat();
+    watchAssignedGroups();
   } catch (err) {
     myTaxiId = null;
     console.error(err);
@@ -399,6 +462,7 @@ async function goOffline() {
   }
   if (taxi) await ref.update({ status: 'offline', lastUpdated: firebase.database.ServerValue.TIMESTAMP });
   stopHeartbeat();
+  stopWatchingAssignedGroups();
   myTaxiId = null;
   onboard = 0;
   liveOnboard = 0;
