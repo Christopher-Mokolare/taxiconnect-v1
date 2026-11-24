@@ -86,7 +86,14 @@ test("passenger assignment and conductor taxi selection are connected", () => {
   assert.match(conductor, /requeueAssignment/);
   assert.match(conductor, /taxi.status !== 'offline'/);
   assert.match(driver, /status: 'offline'/);
-  assert.match(passenger, /t.status !== 'offline'/);
+  assert.match(passenger, /taxiConnectionLabel/);
+  assert.match(passenger, /taxiConnections/);
+  assert.match(passenger, /pickupPoint/);
+  assert.match(passenger, /expiresAt/);
+  assert.match(driver, /onDisconnect\(\)\.remove\(\)/);
+  assert.match(driver, /30 \* 1000/);
+  assert.match(conductor, /demandByPickup/);
+  assert.match(conductor, /Never delete a taxi merely because its phone stopped reporting/);
 });
 
 test("staff authentication uses individual Firebase accounts and admin role claims", () => {
@@ -98,6 +105,34 @@ test("staff authentication uses individual Firebase accounts and admin role clai
   assert.match(conductor, /claims\.isConductor !== true/);
   assert.match(driver, /claims\.isDriver !== true/);
   assert.match(provisioner, /setCustomUserClaims/);
+});
+
+test("rural operations distinguish taxi status from live connection presence", () => {
+  const context = { window: {}, Date };
+  vm.runInNewContext(read("public/js/app-common.js"), context);
+  const helpers = context.window;
+  const now = Date.now();
+  assert.equal(helpers.hasLiveConnection({ session: { lastSeen: now } }, now), true);
+  assert.equal(helpers.hasLiveConnection({ session: { lastSeen: now - 120000 } }, now), false);
+  assert.equal(helpers.taxiConnectionLabel({ status: "loading", lastUpdated: now - 120000 }, {}, now), "Connection lost · last confirmed 2 min ago");
+  assert.equal(helpers.taxiConnectionLabel({ status: "offline" }, { session: { lastSeen: now } }, now), "Offline");
+  assert.equal(helpers.taxiConnectionLabel({ status: "breakdown" }, {}, now), "Breakdown");
+});
+
+test("rural passenger demand is grouped by pickup point and expires", () => {
+  const context = { window: {}, Date };
+  vm.runInNewContext(read("public/js/app-common.js"), context);
+  const now = Date.now();
+  const groups = context.window.demandByPickup({
+    a: { route: "SUN_CITY", pickupPoint: "Village shop", groupSize: 2, status: "waiting", timestamp: now, expiresAt: now + 60000 },
+    b: { route: "SUN_CITY", pickupPoint: "Village shop", groupSize: 1, status: "waiting", timestamp: now, expiresAt: now + 60000 },
+    c: { route: "SUN_CITY", pickupPoint: "Main road", groupSize: 4, status: "waiting", timestamp: now - 3600000 },
+    d: { route: "SUN_CITY", pickupPoint: "Main road", groupSize: 3, status: "assigned", timestamp: now, expiresAt: now + 60000 }
+  }, now);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].pickupPoint, "Village shop");
+  assert.equal(groups[0].people, 3);
+  assert.equal(groups[0].requests, 2);
 });
 
 test("Spark deployment does not publish Cloud Functions", () => {
