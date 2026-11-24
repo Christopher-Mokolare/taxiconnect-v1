@@ -136,7 +136,7 @@ const defaultFirebaseApp = firebase.apps.find(app => app.name === '[DEFAULT]')
 const db = firebase.database(defaultFirebaseApp);
 let selectedRoute = 'SUN_CITY', capacity = 14, onboard = 0, liveOnboard = 0;
 let myTaxiId = null, myCapacity = 14, summonsRef = null, heartbeatTimer = null;
-let connectionRef = null, connectionSessionId = null, connectionListener = null, demandRef = null, currentRouteDemand = {};
+let connectionRef = null, connectionSessionId = null, connectionListener = null, demandRef = null, currentRouteDemand = {}, demandRefreshTimer = null;
 
 // ── Auth ──────────────────────────────────────────────────────────
 let driverName = '';
@@ -206,6 +206,10 @@ async function signOut() {
   }
   sessionStorage.removeItem('tc_role');
   sessionStorage.removeItem('tc_name');
+  if (demandRef) demandRef.off('value');
+  demandRef = null;
+  if (demandRefreshTimer) window.clearInterval(demandRefreshTimer);
+  demandRefreshTimer = null;
   await firebase.auth().signOut();
   document.getElementById('signOutBtn').style.display = 'none';
   show('authScreen');
@@ -302,6 +306,7 @@ function listenForRouteDemand() {
   }, error => {
     console.error('Could not load passenger demand:', error);
   });
+  if (!demandRefreshTimer) demandRefreshTimer = window.setInterval(renderRouteDemand, 30000);
 }
 
 function renderRouteDemand() {
