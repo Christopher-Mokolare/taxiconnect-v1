@@ -74,6 +74,7 @@
     <input type="email" id="emailInput" autocomplete="username" placeholder="name@example.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:6px" />
     <label for="passwordInput" style="display:block;font-size:12px;color:#666;margin-top:10px">Password</label>
     <input type="password" id="passwordInput" autocomplete="current-password" placeholder="Your password" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-top:6px" />
+    <button type="button" id="togglePasswordBtn" class="btn" style="background:transparent;color:#536174;border:1px solid #d5dce5;margin-top:6px" onclick="togglePassword()">Show password</button>
     <button class="btn btn-green" onclick="staffLogin()">Enter App</button>
     <button type="button" class="btn" style="background:transparent;color:#536174;border:1px solid #d5dce5;margin-top:6px" onclick="resetPassword()">Forgot password?</button>
   </div>
@@ -143,6 +144,15 @@ let assignmentsRef = null, assignedGroups = {};
 let driverName = '';
 
 // Driver access is verified using server-issued Firebase custom claims.
+
+function togglePassword() {
+  const input = document.getElementById('passwordInput');
+  const button = document.getElementById('togglePasswordBtn');
+  const reveal = input.type === 'password';
+  input.type = reveal ? 'text' : 'password';
+  button.textContent = reveal ? 'Hide password' : 'Show password';
+  button.setAttribute('aria-pressed', String(reveal));
+}
 
 async function staffLogin() {
   const email = document.getElementById('emailInput').value.trim();
