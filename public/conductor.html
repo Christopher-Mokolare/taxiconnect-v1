@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TaxiConnect — Conductor</title>
+<title>TaxiConnect — Operator / Dispatcher</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"
         integrity="sha384-sEVIly94UBRLKWdkYoPpSG7GD/e79YHMrxVyZaOk712Ga7+EAw6w1EFi+xBzBdd+"
         crossorigin="anonymous"></script>
@@ -70,7 +70,7 @@
 </head>
 <body>
 <header>
-  <h1>🎛 TaxiConnect — Conductor</h1>
+  <h1>🎛 TaxiConnect — Operator / Dispatcher</h1>
   <a class="btn-link" href="/" aria-label="Return to TaxiConnect home">← Home</a>
   <button class="btn-link" id="signOutBtn" onclick="signOut()" style="display:none">Sign Out</button>
 </header>
@@ -78,8 +78,8 @@
 <!-- AUTH -->
 <div id="authScreen" class="screen active">
   <div class="card" style="margin-top:20px">
-    <h3>Conductor sign in</h3>
-    <p style="font-size:13px;color:#64748b;margin-bottom:8px">Sign in with your approved conductor account to manage live taxi operations.</p>
+    <h3>Operator / dispatcher sign in</h3>
+    <p style="font-size:13px;color:#64748b;margin-bottom:8px">Sign in with your approved operator account to manage live taxi operations.</p>
     <label for="emailInput" style="display:block;font-size:12px;color:#666;margin-top:8px">Email address</label>
     <input type="email" id="emailInput" autocomplete="username" placeholder="name@example.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:6px" />
     <label for="passwordInput" style="display:block;font-size:12px;color:#666;margin-top:10px">Password</label>
@@ -243,7 +243,7 @@ firebase.auth().onAuthStateChanged(async user => {
     sessionStorage.removeItem('tc_role');
     sessionStorage.removeItem('tc_name');
     await firebase.auth().signOut();
-    showErr('This account does not have conductor access. Please sign in again.');
+    showErr('This account does not have operator access. Please sign in again.');
     show('authScreen');
   }
 });
