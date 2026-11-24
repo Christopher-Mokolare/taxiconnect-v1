@@ -487,6 +487,10 @@ async function stopTaxiConnection() {
   if (connectionRef) {
     try {
       await connectionRef.onDisconnect().cancel();
+    } catch (error) {
+      console.warn('Could not cancel server disconnect cleanup:', error);
+    }
+    try {
       await connectionRef.remove();
     } catch (error) {
       console.error('Could not clear taxi connection presence:', error);
