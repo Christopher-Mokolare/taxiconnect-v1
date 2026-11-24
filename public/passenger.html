@@ -92,7 +92,7 @@
 
   <div class="card">
     <h3>Signal You're Waiting</h3>
-    <p style="font-size:12px;color:#666">No taxi? Alert the conductor — they'll send a driver.</p>
+    <p style="font-size:12px;color:#666">No taxi? Register your pickup point so the local operator can see demand.</p>
     <label for="pickupPointInput" style="display:block;font-size:12px;color:#666;margin-top:12px">Your pickup point</label>
     <input id="pickupPointInput" type="text" maxlength="80" autocomplete="off" placeholder="e.g. village shop or main road stop" style="width:100%;padding:11px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:6px" />
     <div class="counter-wrap">
@@ -101,7 +101,7 @@
       <button class="cbtn plus" onclick="adjGroup(1)">+</button>
       <span style="font-size:13px;color:#666">people</span>
     </div>
-    <button class="btn btn-primary" id="waitBtn" onclick="sendSignal()">📢 I'M WAITING — Alert Conductor</button>
+    <button class="btn btn-primary" id="waitBtn" onclick="sendSignal()">📢 I'M WAITING — Register Demand</button>
     <button class="btn btn-grey" id="cancelBtn" onclick="cancelWaiting()" style="display:none">✖ Cancel Signal</button>
     <div id="waitStatus" class="alert a-success" style="display:none;margin-top:10px" role="status" aria-live="polite"></div>
   </div>
@@ -438,7 +438,7 @@ async function renderWaitStatus(record) {
       myAssignedTaxiRef.on('value', snapshot => {
         const taxi = snapshot.val();
         if (!taxi || taxi.status === 'offline' || taxi.status === 'breakdown') {
-          el.textContent = '⚠️ Your assigned taxi is unavailable. The conductor can return your group to the waiting queue.';
+          el.textContent = '⚠️ Your assigned taxi is unavailable. The local operator can return your group to the waiting queue.';
           return;
         }
         el.textContent = '🚕 Taxi assigned: ' + (taxi.driverName || 'Driver') +
@@ -453,7 +453,7 @@ async function renderWaitStatus(record) {
   }
   if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
   myAssignedTaxiRef = null;
-  el.textContent = '📢 Your waiting signal is active. The conductor can see your request.';
+  el.textContent = '📢 Your waiting signal is active. The local operator can see your request.';
 }
 
 async function refreshAssignedTaxiConnection() {
