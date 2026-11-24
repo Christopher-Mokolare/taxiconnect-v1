@@ -283,7 +283,7 @@ async function publishPassengerSignal(user, pending) {
   if (currentIndex) {
     const currentWaitSnapshot = await db.ref('waitingPassengers/' + currentIndex).once('value');
     const currentWait = currentWaitSnapshot.val();
-    if (currentWait && (currentWait.status === 'assigned' || isWaitingRequestActive(currentWait))) {
+    if (currentWait && waitingRequestExpiry(currentWait) > Date.now() && (currentWait.status === 'assigned' || isWaitingRequestActive(currentWait))) {
       myWaitId = currentIndex;
       if (pending.id) await TaxiConnectOfflineQueue.remove(pending.id);
       pendingSignalId = null;
@@ -301,7 +301,7 @@ async function publishPassengerSignal(user, pending) {
     const latest = await indexRef.once('value');
     const existingId = latest.val();
     const existing = existingId ? (await db.ref('waitingPassengers/' + existingId).once('value')).val() : null;
-    if (existing && (existing.status === 'assigned' || isWaitingRequestActive(existing))) {
+    if (existing && waitingRequestExpiry(existing) > Date.now() && (existing.status === 'assigned' || isWaitingRequestActive(existing))) {
       myWaitId = existingId;
       if (pending.id) await TaxiConnectOfflineQueue.remove(pending.id);
       pendingSignalId = null;
