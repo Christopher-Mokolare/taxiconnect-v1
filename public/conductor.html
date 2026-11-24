@@ -402,6 +402,7 @@ async function setStatus(id, status) {
         statusUpdatedBy: firebase.auth().currentUser.uid
       };
       updates['taxis/' + id] = null;
+      updates['taxiConnections/' + id] = null;
 
       for (const [waitId, passenger] of Object.entries(allWaiting)) {
         if (passenger?.assignedTaxiId === id) {
@@ -444,6 +445,7 @@ async function removeTaxi(id) {
     if (!snapshot.exists()) return;
     const updates = {};
     updates['taxis/' + id] = null;
+    updates['taxiConnections/' + id] = null;
     for (const [waitId, passenger] of Object.entries(allWaiting)) {
       if (passenger?.assignedTaxiId === id) {
         updates['waitingPassengers/' + waitId + '/status'] = 'waiting';
