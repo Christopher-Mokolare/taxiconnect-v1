@@ -72,6 +72,8 @@ async function main() {
       groupSize: 2,
       passengerId: "passenger-1",
       timestamp: Date.now(),
+      pickupPoint: "Mabeskraal village shop",
+      expiresAt: Date.now() + 45 * 60 * 1000,
       status: "waiting"
     };
     await assertSucceeds(set(ref(passengerDb, "waitingPassengers/wait-1"), ownWait));
@@ -96,11 +98,21 @@ async function main() {
       lastUpdated: Date.now()
     };
     await assertSucceeds(set(ref(driverDb, "taxis/taxi-1"), ownTaxi));
+    await assertSucceeds(get(ref(passengerDb, "taxis")));
+    await assertSucceeds(get(ref(conductorDb, "taxis")));
+    const connectionSession = { connectedAt: Date.now(), lastSeen: Date.now() };
+    await assertSucceeds(set(ref(driverDb, "taxiConnections/taxi-1/session-1"), connectionSession));
+    await assertSucceeds(get(ref(passengerDb, "taxiConnections/taxi-1")));
+    await assertSucceeds(get(ref(conductorDb, "taxiConnections/taxi-1")));
+    await assertFails(set(ref(otherDriverDb, "taxiConnections/taxi-1/session-evil"), connectionSession));
+    await assertSucceeds(remove(ref(driverDb, "taxiConnections/taxi-1/session-1")));
     const assignableWait = {
       route: "RUSTENBURG",
       groupSize: 2,
       passengerId: "passenger-1",
       timestamp: Date.now(),
+      pickupPoint: "Mabeskraal main road",
+      expiresAt: Date.now() + 45 * 60 * 1000,
       status: "waiting"
     };
     await assertSucceeds(set(ref(passengerDb, "waitingPassengers/wait-assign"), assignableWait));
