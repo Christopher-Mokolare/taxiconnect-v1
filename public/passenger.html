@@ -176,7 +176,7 @@ function enterApp() {
 }
 
 async function signOut() {
-  if (myWaitId) await cancelWaiting();
+  if (myWaitId || pendingSignalId) await cancelWaiting();
   await firebase.auth().signOut();
   taxisSubscribed = false;
   db.ref('taxis').off('value');
@@ -252,22 +252,9 @@ async function sendSignal() {
     createdAt: Date.now(),
     expiresAt: Date.now() + 45 * 60 * 1000
   };
-  if (!navigator.onLine) {
-    await queuePassengerSignal(pending);
-    return;
-  }
-  try {
-    await publishPassengerSignal(user, pending);
-    document.getElementById('waitStatus').textContent = 'Your waiting request has been sent.';
-    document.getElementById('waitStatus').style.display = 'block';
-  } catch (error) {
-    console.error('Waiting signal failed:', error);
-    if (!navigator.onLine) {
-      await queuePassengerSignal(pending);
-      return;
-    }
-    alert(error?.message || 'Could not send waiting signal.');
-  }
+  // Persist before attempting the network write so a page reload cannot lose the request.
+  await queuePassengerSignal(pending);
+  if (navigator.onLine) await flushPendingSignals();
 }
 
 async function queuePassengerSignal(pending) {
@@ -356,6 +343,8 @@ async function flushPendingSignals() {
     const pendingItems = await TaxiConnectOfflineQueue.all();
     for (const pending of pendingItems) {
       if (pending.passengerId !== user.uid) continue;
+      pendingSignalId = pending.id;
+      syncWaitControls();
       if (pending.expiresAt <= Date.now()) {
         await TaxiConnectOfflineQueue.remove(pending.id);
         if (pendingSignalId === pending.id) pendingSignalId = null;
