@@ -149,7 +149,7 @@ const defaultFirebaseApp = firebase.apps.find(app => app.name === '[DEFAULT]')
   || firebase.initializeApp(window.FIREBASE_CONFIG);
 const db = firebase.database(defaultFirebaseApp);
 let allTaxis = {}, allWaiting = {}, allConnections = {};
-let subscribed = false;
+let subscribed = false, lastDemandSignature = null;
 
 // ── Auth ──────────────────────────────────────────────────────────
 // Conductor access uses Firebase Email/Password plus server-issued custom claims.
@@ -256,6 +256,24 @@ function subscribe() {
 
 function renderAll() {
   renderDemand(); renderTaxis(); renderWaiting(); renderAlert();
+  publishDemandSummary();
+}
+
+async function publishDemandSummary() {
+  const groups = demandByPickup(allWaiting);
+  const signature = JSON.stringify(groups.map(group => ({ route: group.route, pickupPoint: group.pickupPoint, people: group.people, requests: group.requests, expiresAt: group.expiresAt })));
+  if (signature === lastDemandSignature) return;
+  const summary = {};
+  groups.forEach(group => {
+    const key = encodeURIComponent(group.route + '-' + group.pickupPoint.toLowerCase()).replace(/[.#$\\[\\]/]/g, '_');
+    summary[key] = { route: group.route, pickupPoint: group.pickupPoint, people: group.people, requests: group.requests, expiresAt: group.expiresAt };
+  });
+  try {
+    await db.ref('routeDemand').set(summary);
+    lastDemandSignature = signature;
+  } catch (error) {
+    console.error('Could not publish aggregated passenger demand:', error);
+  }
 }
 
 function renderDemand() {
@@ -536,7 +554,7 @@ function requestNotificationPermission() {
 }
 
 async function notifyRoute(route) {
-  const waiting = Object.values(allWaiting).filter(item => item.route === route);
+  const waiting = Object.values(allWaiting).filter(item => item.route === route && isWaitingRequestActive(item));
   const count = Math.min(200, waiting.reduce((sum, item) => sum + Number(item.groupSize || 1), 0));
   if (!count) {
     alert('No waiting passengers for this route.');
