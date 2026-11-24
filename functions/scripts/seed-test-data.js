@@ -94,7 +94,14 @@ async function main() {
   console.log("Remove test records and accounts manually when testing is complete.");
 }
 
-main().catch(error => {
-  console.error("Test data setup failed:", error.message);
-  process.exitCode = 1;
-});
+main()
+  .catch(error => {
+    console.error("Test data setup failed:", error.message);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    // Close Firebase Admin connections so GitHub Actions can finish the job.
+    if (admin.apps.length) {
+      await Promise.all(admin.apps.map(app => app.delete()));
+    }
+  });
