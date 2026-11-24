@@ -13,17 +13,23 @@ test('a passenger group is assigned to the correct taxi and the driver confirms 
   const driver = await driverContext.newPage();
   let waitId = null;
   let waitingCard = null;
+  const passengerDialogs = [];
 
   try {
     // Passenger creates a seven-person Sun City group using anonymous Firebase Auth.
-    passenger.on('dialog', dialog => dialog.accept());
+    passenger.on('dialog', async dialog => {
+      passengerDialogs.push(dialog.message());
+      await dialog.accept();
+    });
     await passenger.goto('/passenger.html');
+    await passenger.waitForFunction(() => firebase.auth().currentUser !== null);
     await passenger.getByRole('button', { name: /Find a Taxi/ }).click();
     for (let i = 0; i < 6; i += 1) {
       await passenger.locator('.counter-wrap .cbtn.plus').click();
     }
     await expect(passenger.locator('#groupVal')).toHaveText('7');
     await passenger.getByRole('button', { name: /Alert Conductor/ }).click();
+    expect(passengerDialogs).toContain('Waiting signal sent successfully.');
     await expect(passenger.locator('#waitStatus')).toContainText('waiting signal is active');
     waitId = await passenger.evaluate(() => myWaitId);
     expect(waitId).toBeTruthy();
