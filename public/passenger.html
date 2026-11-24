@@ -141,10 +141,12 @@ firebase.auth().onAuthStateChanged(async user => {
     db.ref('taxiConnections').on('value', snapshot => {
       allConnections = snapshot.val() || {};
       renderTaxis();
+      refreshAssignedTaxiConnection();
     }, error => {
       console.error('Taxi connection subscription failed:', error);
       allConnections = {};
       renderTaxis();
+      refreshAssignedTaxiConnection();
     });
   }
 
@@ -452,6 +454,25 @@ async function renderWaitStatus(record) {
   if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
   myAssignedTaxiRef = null;
   el.textContent = '📢 Your waiting signal is active. The conductor can see your request.';
+}
+
+async function refreshAssignedTaxiConnection() {
+  if (!myWaitId) return;
+  try {
+    const waitSnapshot = await db.ref('waitingPassengers/' + myWaitId).once('value');
+    const request = waitSnapshot.val();
+    if (!request || request.status !== 'assigned' || !request.assignedTaxiId) return;
+    const taxiSnapshot = await db.ref('taxis/' + request.assignedTaxiId).once('value');
+    const taxi = taxiSnapshot.val();
+    const status = document.getElementById('waitStatus');
+    if (!taxi || taxi.status === 'offline' || taxi.status === 'breakdown') return;
+    if (!isTaxiFresh(taxi, allConnections[request.assignedTaxiId])) {
+      status.textContent = '⚠️ A taxi was assigned, but its connection is unverified. Last confirmed ' + timeAgo(taxi.lastUpdated) + '. Please wait for the operator to confirm.';
+      status.style.display = 'block';
+    }
+  } catch (error) {
+    console.warn('Could not refresh assigned taxi connection state:', error);
+  }
 }
 
 function syncWaitControls() {
