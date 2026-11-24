@@ -308,9 +308,9 @@ function renderWaiting() {
         '<button onclick="requeueAssignment(\'' + escapeHtml(id) + '\')" style="margin-top:6px;padding:7px 10px;border:0;border-radius:7px;background:#b45309;color:#fff;font-weight:700;cursor:pointer">Return to waiting queue</button>'
       : w.status === 'assigned'
         ? (allAssignments[w.assignedTaxiId]?.[id]?.status === 'pickedUp'
-          ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Driver confirmed pickup · Group #' + escapeHtml(w.groupCode || id.slice(-6).toUpperCase()) + '</div>'
+          ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Driver confirmed pickup · Group #' + escapeHtml(w.groupCode || id.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase()) + '</div>'
           : '<div class="meta" style="color:#146c43;font-weight:700">✓ Assigned to ' +
-            escapeHtml(assignedTaxi?.driverName || 'taxi') + ' · Group #' + escapeHtml(w.groupCode || id.slice(-6).toUpperCase()) + '</div>')
+            escapeHtml(assignedTaxi?.driverName || 'taxi') + ' · Group #' + escapeHtml(w.groupCode || id.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase()) + '</div>')
         : matchingTaxis.length
         ? '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">' +
           '<select id="assign-' + escapeHtml(id) + '" aria-label="Choose taxi for passenger" style="flex:1;min-width:0;padding:8px;border:1px solid #ddd;border-radius:7px">' +
@@ -454,7 +454,7 @@ async function assignTaxi(waitId) {
       throw new Error('That taxi does not have enough unreserved seats. Refresh and choose another.');
     }
 
-    const groupCode = waitId.slice(-6).toUpperCase();
+    const groupCode = waitId.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase();
     const assignedAt = firebase.database.ServerValue.TIMESTAMP;
     const updates = {};
     updates['waitingPassengers/' + waitId] = {
