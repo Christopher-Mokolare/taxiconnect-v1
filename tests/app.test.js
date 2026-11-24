@@ -135,6 +135,13 @@ test("rural passenger demand is grouped by pickup point and expires", () => {
   assert.equal(groups[0].requests, 2);
 });
 
+test("IndexedDB passenger queue is included and syntactically valid", () => {
+  const queue = read("public/js/offline-queue.js");
+  assert.match(queue, /indexedDB\\.open/);
+  assert.match(queue, /pendingSignals/);
+  assert.match(queue, /TaxiConnectOfflineQueue/);
+  assert.doesNotThrow(() => new vm.Script(queue));
+});
 test("Spark deployment does not publish Cloud Functions", () => {
   const config = JSON.parse(read("firebase.json"));
   assert.equal(Object.hasOwn(config, "functions"), false);
