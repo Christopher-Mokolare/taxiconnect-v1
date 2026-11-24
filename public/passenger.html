@@ -298,7 +298,7 @@ async function renderWaitStatus(record) {
           el.textContent = 'Your group has been assigned. Keep this page open and wait for the driver update.';
           return;
         }
-        const groupLabel = 'Group #' + (assignment.groupCode || record.groupCode || myWaitId.slice(-6).toUpperCase());
+        const groupLabel = 'Group #' + (assignment.groupCode || record.groupCode || myWaitId.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase());
         if (assignment.status === 'pickedUp') {
           el.textContent = '✓ ' + groupLabel + ' · ' + Number(assignment.groupSize || record.groupSize || 1) +
             ' passenger(s). ' + (assignment.driverName || 'Your driver') + ' confirmed pickup.';
@@ -307,7 +307,7 @@ async function renderWaitStatus(record) {
         el.textContent = '🚕 ' + groupLabel + ' · ' + Number(assignment.groupSize || record.groupSize || 1) +
           ' passenger(s) assigned to ' + (assignment.driverName || 'your taxi') + ' on ' +
           routeLabel(assignment.route || record.route) + '. Show this group code to the driver: ' +
-          (assignment.groupCode || record.groupCode || myWaitId.slice(-6).toUpperCase()) + '.';
+          (assignment.groupCode || record.groupCode || myWaitId.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase()) + '.';
       }, error => {
         console.error('Could not watch pickup confirmation:', error);
         el.textContent = 'A taxi has been assigned. Keep this page open for pickup updates.';
