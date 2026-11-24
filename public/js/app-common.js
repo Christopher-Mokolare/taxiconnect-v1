@@ -32,14 +32,16 @@
     })[character]);
   }
 
-  function hasLiveConnection(sessions, now = Date.now(), staleMs = 90000) {
+  const CONNECTION_STALE_MS = 3 * 60 * 1000;
+
+  function hasLiveConnection(sessions, now = Date.now(), staleMs = CONNECTION_STALE_MS) {
     return Object.values(sessions || {}).some(session => {
       const seen = Number(session?.lastSeen || session?.connectedAt || 0);
       return seen > 0 && now - seen <= staleMs;
     });
   }
 
-  function isTaxiFresh(taxi, sessions, now = Date.now(), staleMs = 90000) {
+  function isTaxiFresh(taxi, sessions, now = Date.now(), staleMs = CONNECTION_STALE_MS) {
     const lastUpdated = Number(taxi?.lastUpdated || 0);
     return hasLiveConnection(sessions, now, staleMs) && lastUpdated > 0 && now - lastUpdated <= staleMs;
   }
@@ -60,6 +62,14 @@
 
   function isWaitingRequestActive(record, now = Date.now()) {
     return Boolean(record && record.status === "waiting" && waitingRequestExpiry(record) > now);
+  }
+
+  function assignedSeatsForTaxi(waiting, taxiId, now = Date.now()) {
+    return Object.values(waiting || {})
+      .filter(record => record?.status === "assigned" &&
+        record.assignedTaxiId === taxiId &&
+        waitingRequestExpiry(record) > now)
+      .reduce((total, record) => total + Math.max(1, Number(record.groupSize || 1)), 0);
   }
 
   function demandByPickup(waiting, now = Date.now()) {
@@ -87,5 +97,6 @@
   window.taxiConnectionLabel = taxiConnectionLabel;
   window.waitingRequestExpiry = waitingRequestExpiry;
   window.isWaitingRequestActive = isWaitingRequestActive;
+  window.assignedSeatsForTaxi = assignedSeatsForTaxi;
   window.demandByPickup = demandByPickup;
 })();
