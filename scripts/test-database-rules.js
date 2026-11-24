@@ -107,9 +107,38 @@ async function main() {
     await assertSucceeds(update(ref(conductorDb, "waitingPassengers/wait-assign"), {
       status: "assigned",
       assignedTaxiId: "taxi-1",
-      assignedAt: Date.now()
+      assignedAt: Date.now(),
+      groupCode: "ABC123"
     }));
     await assertSucceeds(get(ref(passengerDb, "waitingPassengers/wait-assign")));
+    const assignment = {
+      waitId: "wait-assign",
+      passengerId: "passenger-1",
+      driverName: "Driver One",
+      route: "RUSTENBURG",
+      groupSize: 2,
+      groupCode: "ABC123",
+      status: "assigned",
+      assignedAt: Date.now()
+    };
+    await assertSucceeds(set(ref(conductorDb, "taxiAssignments/taxi-1/wait-assign"), assignment));
+    await assertSucceeds(get(ref(driverDb, "taxiAssignments/taxi-1")));
+    await assertSucceeds(get(ref(driverDb, "taxiAssignments/taxi-1/wait-assign")));
+    await assertSucceeds(get(ref(passengerDb, "taxiAssignments/taxi-1/wait-assign")));
+    await assertFails(get(ref(otherDriverDb, "taxiAssignments/taxi-1")));
+    await assertFails(update(ref(driverDb, "taxiAssignments/taxi-1/wait-assign"), {
+      groupSize: 9
+    }));
+    await assertSucceeds(update(ref(driverDb, "taxiAssignments/taxi-1/wait-assign"), {
+      status: "pickedUp",
+      pickedUpAt: Date.now()
+    }));
+    await assertSucceeds(get(ref(passengerDb, "taxiAssignments/taxi-1/wait-assign")));
+    await assertFails(remove(ref(passengerDb, "taxiAssignments/taxi-1/wait-assign")));
+    await assertFails(update(ref(otherDriverDb, "taxiAssignments/taxi-1/wait-assign"), {
+      status: "pickedUp",
+      pickedUpAt: Date.now()
+    }));
     await assertFails(update(ref(otherPassengerDb, "waitingPassengers/wait-assign"), {
       status: "assigned",
       assignedTaxiId: "taxi-1",
