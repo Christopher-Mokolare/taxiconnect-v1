@@ -282,7 +282,7 @@ async function publishDemandSummary() {
 function renderDemand() {
   const stats = { SUN_CITY: { taxis:0, waiting:0, seats:0 }, RUSTENBURG: { taxis:0, waiting:0, seats:0 } };
   Object.entries(allTaxis).forEach(([id, taxi]) => {
-    if (!stats[taxi.route] || taxi.status === 'offline' || taxi.status === 'breakdown' || !hasLiveConnection(allConnections[id])) return;
+    if (!stats[taxi.route] || taxi.status === 'offline' || taxi.status === 'breakdown' || !isTaxiFresh(taxi, allConnections[id])) return;
     stats[taxi.route].taxis++;
     stats[taxi.route].seats += Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0));
   });
@@ -308,7 +308,7 @@ function renderTaxis() {
     const taxis = entries.filter(([, taxi]) => taxi.route === route);
     const rows = taxis.length ? taxis.map(([id, taxi]) => {
       const needed = Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0));
-      const connected = hasLiveConnection(allConnections[id]);
+      const connected = isTaxiFresh(taxi, allConnections[id]);
       const connection = taxiConnectionLabel(taxi, allConnections[id]);
       const badge = taxi.status === 'offline' ? '<span class="badge b-breakdown">Offline</span>'
         : taxi.status === 'breakdown' ? '<span class="badge b-breakdown">⚠️ Breakdown</span>'
@@ -341,10 +341,10 @@ function renderWaiting() {
       const freeSeats = Number(taxi.capacity || 14) -
         Number(taxi.passengersOnboard || 0) - alreadyAssigned;
       return taxi.route === w.route && taxi.status !== 'breakdown' && taxi.status !== 'offline' &&
-        hasLiveConnection(allConnections[taxiId]) && freeSeats >= Number(w.groupSize || 1);
+        isTaxiFresh(taxi, allConnections[taxiId]) && freeSeats >= Number(w.groupSize || 1);
     });
     const assignedTaxi = w.assignedTaxiId ? allTaxis[w.assignedTaxiId] : null;
-    const assignment = w.status === 'assigned' && (!assignedTaxi || assignedTaxi.status === 'offline' || assignedTaxi.status === 'breakdown' || !hasLiveConnection(allConnections[w.assignedTaxiId]))
+    const assignment = w.status === 'assigned' && (!assignedTaxi || assignedTaxi.status === 'offline' || assignedTaxi.status === 'breakdown' || !isTaxiFresh(assignedTaxi, allConnections[w.assignedTaxiId]))
       ? '<div class="meta" style="color:#b45309;font-weight:700">Taxi unavailable — this group needs reassignment</div>' +
         '<button onclick="requeueAssignment(\'' + escapeHtml(id) + '\')" style="margin-top:6px;padding:7px 10px;border:0;border-radius:7px;background:#b45309;color:#fff;font-weight:700;cursor:pointer">Return to waiting queue</button>'
       : w.status === 'assigned'
