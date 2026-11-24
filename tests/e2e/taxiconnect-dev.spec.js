@@ -18,7 +18,7 @@ test.describe('TaxiConnect development smoke tests', () => {
     await expect(page.getByRole('button', { name: /Find a Taxi/ })).toBeVisible();
     await page.getByRole('button', { name: /Find a Taxi/ }).click();
     await expect(page.getByText('Where are you going?')).toBeVisible();
-    await expect(page.getByText('Available Taxis')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Available Taxis' })).toBeVisible();
     await expect(page.getByLabel('Your pickup point')).toBeVisible();
     await expect(page.getByRole('button', { name: /Register Demand/ })).toBeVisible();
     await expect(page.locator('#groupVal')).toHaveText('1');
