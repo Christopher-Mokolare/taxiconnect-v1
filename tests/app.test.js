@@ -137,7 +137,7 @@ test("rural passenger demand is grouped by pickup point and expires", () => {
 
 test("IndexedDB passenger queue is included and syntactically valid", () => {
   const queue = read("public/js/offline-queue.js");
-  assert.match(queue, /indexedDB\\.open/);
+  assert.match(queue, /indexedDB\.open/);
   assert.match(queue, /pendingSignals/);
   assert.match(queue, /TaxiConnectOfflineQueue/);
   assert.doesNotThrow(() => new vm.Script(queue));
