@@ -60,9 +60,15 @@ test('a passenger group is assigned to the correct taxi and the driver confirms 
     await expect(passenger.locator('#waitStatus')).toContainText('confirmed pickup');
     await expect(waitingCard).toContainText('Driver confirmed pickup');
 
-    // Remove this test passenger record so repeated runs do not accumulate queue entries.
-    await waitingCard.getByRole('button', { name: 'Clear signal' }).click();
+    // Operator marks the taxi departed; the passenger queue and driver live screen must close.
+    await conductor.locator('.tab').filter({ hasText: 'Taxis' }).click();
+    const taxiCard = conductor.locator('#taxiList .taxi-row').filter({ hasText: 'Test Driver 1' }).last();
+    await expect(taxiCard).toContainText('10/14 onboard');
+    await taxiCard.getByRole('button', { name: /Depart/ }).click();
     await expect(waitingCard).toHaveCount(0);
+    await expect(passenger.locator('#waitStatus')).toBeHidden();
+    await expect(driver.locator('#liveCard')).toBeHidden();
+    await expect(driver.locator('#checkInCard')).toBeVisible();
   } finally {
     await passengerContext.close();
     await conductorContext.close();
