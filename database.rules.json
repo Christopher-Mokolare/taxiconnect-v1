@@ -51,7 +51,7 @@
       "$waitId": {
         ".read": "auth != null && (auth.token.isConductor === true || data.child('passengerId').val() === auth.uid)",
         ".write": "auth != null && (auth.token.isConductor === true || (auth.token.firebase.sign_in_provider === 'anonymous' && ((!data.exists() && newData.child('passengerId').val() === auth.uid) || (data.child('passengerId').val() === auth.uid && !newData.exists()))))",
-        ".validate": "!newData.exists() || (newData.hasChildren(['route','groupSize','timestamp','passengerId','status']) && newData.child('passengerId').isString() && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('groupSize').isNumber() && newData.child('groupSize').val() >= 1 && newData.child('groupSize').val() <= 10 && newData.child('timestamp').isNumber() && newData.child('timestamp').val() <= now + 5000 && newData.child('timestamp').val() >= now - 60000 && ((newData.child('status').val() === 'waiting' && !newData.child('assignedTaxiId').exists() && !newData.child('assignedAt').exists()) || (newData.child('status').val() === 'assigned' && newData.child('assignedTaxiId').isString() && root.child('taxis').child(newData.child('assignedTaxiId').val()).exists() && root.child('taxis').child(newData.child('assignedTaxiId').val()).child('route').val() === newData.child('route').val() && root.child('taxis').child(newData.child('assignedTaxiId').val()).child('status').val() !== 'breakdown' && newData.child('assignedAt').isNumber() && newData.child('assignedAt').val() <= now + 5000 && newData.child('assignedAt').val() >= now - 60000)))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['route','groupSize','timestamp','passengerId','status']) && newData.child('passengerId').isString() && (!newData.child('pickupPoint').exists() || (newData.child('pickupPoint').isString() && newData.child('pickupPoint').val().length <= 80)) && (!newData.child('expiresAt').exists() || (newData.child('expiresAt').isNumber() && newData.child('expiresAt').val() > now && newData.child('expiresAt').val() <= now + 3600000)) && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('groupSize').isNumber() && newData.child('groupSize').val() >= 1 && newData.child('groupSize').val() <= 10 && newData.child('timestamp').isNumber() && newData.child('timestamp').val() <= now + 5000 && newData.child('timestamp').val() >= now - 60000 && ((newData.child('status').val() === 'waiting' && !newData.child('assignedTaxiId').exists() && !newData.child('assignedAt').exists()) || (newData.child('status').val() === 'assigned' && newData.child('assignedTaxiId').isString() && root.child('taxis').child(newData.child('assignedTaxiId').val()).exists() && root.child('taxis').child(newData.child('assignedTaxiId').val()).child('route').val() === newData.child('route').val() && root.child('taxis').child(newData.child('assignedTaxiId').val()).child('status').val() !== 'breakdown' && newData.child('assignedAt').isNumber() && newData.child('assignedAt').val() <= now + 5000 && newData.child('assignedAt').val() >= now - 60000)))",
         "route": {
           ".validate": "newData.val() === 'SUN_CITY' || newData.val() === 'RUSTENBURG'"
         },
@@ -75,6 +75,12 @@
         },
         "assignedAt": {
           ".validate": "newData.isNumber()"
+        },
+        "pickupPoint": {
+          ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 80"
+        },
+        "expiresAt": {
+          ".validate": "newData.isNumber() && newData.val() > now && newData.val() <= now + 3600000"
         }
       }
     },
@@ -122,6 +128,24 @@
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.token.isConductor === true)",
         ".write": "auth != null && auth.token.isConductor === true"
+      }
+    },
+    "taxiConnections": {
+      ".read": "auth != null",
+      "$taxiId": {
+        ".write": "auth != null && auth.token.isDriver === true && root.child('taxis').child($taxiId).child('driverId').val() === auth.uid",
+        "$sessionId": {
+          ".validate": "!newData.exists() || (newData.hasChildren(['connectedAt','lastSeen']) && newData.child('connectedAt').isNumber() && newData.child('lastSeen').isNumber() && newData.child('connectedAt').val() <= now + 5000 && newData.child('lastSeen').val() <= now + 5000)",
+          "connectedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "lastSeen": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
       }
     }
   }
