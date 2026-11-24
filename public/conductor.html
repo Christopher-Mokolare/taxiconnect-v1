@@ -307,7 +307,7 @@ function renderWaiting() {
         '<button onclick="requeueAssignment(\'' + escapeHtml(id) + '\')" style="margin-top:6px;padding:7px 10px;border:0;border-radius:7px;background:#b45309;color:#fff;font-weight:700;cursor:pointer">Return to waiting queue</button>'
       : w.status === 'assigned'
         ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Assigned to ' +
-          escapeHtml(assignedTaxi?.driverName || 'taxi') + '</div>'
+          escapeHtml(assignedTaxi?.driverName || 'taxi') + ' · Group #' + escapeHtml(w.groupCode || id.slice(-6).toUpperCase()) + '</div>'
         : matchingTaxis.length
         ? '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">' +
           '<select id="assign-' + escapeHtml(id) + '" aria-label="Choose taxi for passenger" style="flex:1;min-width:0;padding:8px;border:1px solid #ddd;border-radius:7px">' +
@@ -317,7 +317,7 @@ function renderWaiting() {
           '</select><button onclick="assignTaxi(\'' + escapeHtml(id) + '\')" style="padding:8px 12px;border:0;border-radius:7px;background:#146c43;color:#fff;font-weight:700;cursor:pointer">Assign</button></div>'
         : '<div class="meta">No available taxi on this route yet.</div>';
     return `
-    <div class="taxi-row">
+    <div class="taxi-row" data-testid="waiting-card" data-wait-id="${escapeHtml(id)}">
       <div class="row-header">
         <span style="font-size:13px;font-weight:600">${routeLabel(w.route)}</span>
         <span class="badge b-needs">👥 ${w.groupSize||1}</span>
@@ -346,6 +346,8 @@ async function setStatus(id, status) {
     const snapshot = await ref.once('value');
     const taxi = snapshot.val();
     if (!taxi) return;
+    const assignmentSnapshot = await db.ref('taxiAssignments/' + id).once('value');
+    const taxiAssignments = assignmentSnapshot.val() || {};
 
     if (status === 'departed') {
       const updates = {};
@@ -359,6 +361,7 @@ async function setStatus(id, status) {
 
       for (const [waitId, passenger] of Object.entries(allWaiting)) {
         if (passenger?.assignedTaxiId === id) {
+          updates['taxiAssignments/' + id + '/' + waitId] = null;
           updates['waitingPassengers/' + waitId] = null;
           if (passenger.passengerId) {
             const index = await db.ref('passengerWaiting/' + passenger.passengerId).once('value');
@@ -376,10 +379,12 @@ async function setStatus(id, status) {
     updates['taxis/' + id + '/statusUpdatedBy'] = firebase.auth().currentUser.uid;
     if (status === 'breakdown') {
       for (const [waitId, passenger] of Object.entries(allWaiting)) {
-        if (passenger?.assignedTaxiId === id) {
+        if (passenger?.assignedTaxiId === id && taxiAssignments[waitId]?.status !== 'pickedUp') {
           updates['waitingPassengers/' + waitId + '/status'] = 'waiting';
           updates['waitingPassengers/' + waitId + '/assignedTaxiId'] = null;
           updates['waitingPassengers/' + waitId + '/assignedAt'] = null;
+          updates['waitingPassengers/' + waitId + '/groupCode'] = null;
+          updates['taxiAssignments/' + id + '/' + waitId] = null;
         }
       }
     }
@@ -396,6 +401,13 @@ async function removeTaxi(id) {
     const ref = db.ref('taxis/' + id);
     const snapshot = await ref.once('value');
     if (!snapshot.exists()) return;
+    const taxi = snapshot.val();
+    const assignmentSnapshot = await db.ref('taxiAssignments/' + id).once('value');
+    const taxiAssignments = assignmentSnapshot.val() || {};
+    if (Number(taxi.passengersOnboard || 0) > 0 || Object.values(taxiAssignments).some(group => group.status === 'pickedUp')) {
+      alert('This taxi has passengers onboard or confirmed pickups. Update the trip before removing it.');
+      return;
+    }
     const updates = {};
     updates['taxis/' + id] = null;
     for (const [waitId, passenger] of Object.entries(allWaiting)) {
@@ -403,6 +415,8 @@ async function removeTaxi(id) {
         updates['waitingPassengers/' + waitId + '/status'] = 'waiting';
         updates['waitingPassengers/' + waitId + '/assignedTaxiId'] = null;
         updates['waitingPassengers/' + waitId + '/assignedAt'] = null;
+        updates['waitingPassengers/' + waitId + '/groupCode'] = null;
+        updates['taxiAssignments/' + id + '/' + waitId] = null;
       }
     }
     await db.ref().update(updates);
@@ -432,16 +446,31 @@ async function assignTaxi(waitId) {
     const freeSeats = taxi
       ? Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0) - assignedSeats
       : 0;
-    if (!taxi || taxi.route !== passenger.route || taxi.status === 'breakdown' ||
+    if (!taxi || taxi.route !== passenger.route || taxi.status === 'breakdown' || taxi.status === 'offline' ||
         freeSeats < Number(passenger.groupSize || 1)) {
       throw new Error('That taxi does not have enough unreserved seats. Refresh and choose another.');
     }
 
-    await passengerRef.update({
+    const groupCode = waitId.slice(-6).toUpperCase();
+    const assignedAt = firebase.database.ServerValue.TIMESTAMP;
+    const updates = {};
+    updates['waitingPassengers/' + waitId] = {
+      ...passenger,
       status: 'assigned',
       assignedTaxiId: taxiId,
-      assignedAt: firebase.database.ServerValue.TIMESTAMP
-    });
+      assignedAt,
+      groupCode
+    };
+    updates['taxiAssignments/' + taxiId + '/' + waitId] = {
+      waitId,
+      passengerId: passenger.passengerId,
+      route: passenger.route,
+      groupSize: Number(passenger.groupSize || 1),
+      groupCode,
+      status: 'assigned',
+      assignedAt
+    };
+    await db.ref().update(updates);
   } catch (error) {
     console.error('Taxi assignment failed:', error);
     alert(error?.message || 'Could not assign this taxi.');
@@ -454,7 +483,10 @@ async function requeueAssignment(id) {
     const snapshot = await ref.once('value');
     const passenger = snapshot.val();
     if (!passenger || passenger.status !== 'assigned') return;
-    await ref.update({ status: 'waiting', assignedTaxiId: null, assignedAt: null });
+    const updates = {};
+    updates['waitingPassengers/' + id] = { ...passenger, status: 'waiting', assignedTaxiId: null, assignedAt: null, groupCode: null };
+    if (passenger.assignedTaxiId) updates['taxiAssignments/' + passenger.assignedTaxiId + '/' + id] = null;
+    await db.ref().update(updates);
   } catch (error) {
     console.error('Requeue assignment failed:', error);
     alert(error?.message || 'Could not return this group to the waiting queue.');
@@ -469,6 +501,7 @@ async function dismiss(id) {
     if (!passenger) return;
     const updates = {};
     updates['waitingPassengers/' + id] = null;
+    if (passenger.assignedTaxiId) updates['taxiAssignments/' + passenger.assignedTaxiId + '/' + id] = null;
     if (passenger.passengerId) {
       const index = await db.ref('passengerWaiting/' + passenger.passengerId).once('value');
       if (index.val() === id) updates['passengerWaiting/' + passenger.passengerId] = null;
