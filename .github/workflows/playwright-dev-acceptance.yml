@@ -1,0 +1,112 @@
+name: TaxiConnect development Playwright acceptance tests
+
+on:
+  push:
+    branches:
+      - feat/taxiconnect-e2e-completion
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taxiconnect-dev-playwright-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    name: Deploy isolated dev preview and test passenger-to-driver pickup
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out development branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify dev-only credentials and test password
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TAXICONNECT_DEV }}
+          TEST_PASSWORD: ${{ secrets.TAXICONNECT_TEST_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$FIREBASE_SERVICE_ACCOUNT" ]]; then
+            echo "::error::Missing FIREBASE_SERVICE_ACCOUNT_TAXICONNECT_DEV."
+            exit 1
+          fi
+          if [[ -z "$TEST_PASSWORD" || ${#TEST_PASSWORD} -lt 12 ]]; then
+            echo "::error::Missing TAXICONNECT_TEST_PASSWORD or password is shorter than 12 characters."
+            exit 1
+          fi
+          PROJECT_ID="$(printf '%s' "$FIREBASE_SERVICE_ACCOUNT" | jq -r '.project_id // empty')"
+          if [[ "$PROJECT_ID" != "taxiconnect-dev" ]]; then
+            echo "::error::Refusing to run against a Firebase project other than taxiconnect-dev."
+            exit 1
+          fi
+
+      - name: Install Firebase Admin tooling
+        run: npm ci --prefix functions
+
+      - name: Authenticate only to TaxiConnect-Dev
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TAXICONNECT_DEV }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Deploy Realtime Database rules to TaxiConnect-Dev
+        run: npx --yes firebase-tools@latest deploy --only database --project taxiconnect-dev --non-interactive
+
+      - name: Seed fake staff accounts and sample taxis in TaxiConnect-Dev
+        env:
+          GCLOUD_PROJECT: taxiconnect-dev
+          TAXICONNECT_ALLOW_TEST_SEED: "1"
+          TAXICONNECT_TEST_PASSWORD: ${{ secrets.TAXICONNECT_TEST_PASSWORD }}
+        run: npm run seed:test --prefix functions
+
+      - name: Deploy a temporary Firebase Hosting preview
+        id: preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHANNEL="e2e-${GITHUB_RUN_ID}"
+          npx --yes firebase-tools@latest hosting:channel:deploy "$CHANNEL" --project taxiconnect-dev --expires 1d --non-interactive --json > "$RUNNER_TEMP/hosting-channel.json"
+          PREVIEW_URL="$(node -e "const fs=require('fs'); const d=JSON.parse(fs.readFileSync(process.argv[1],'utf8')); const walk=o=>{if(!o||typeof o!=='object')return ''; for(const [k,v] of Object.entries(o)){if(typeof v==='string' && /^https:\\/\\/.+\\.web\\.app$/.test(v))return v; const found=walk(v); if(found)return found;} return '';}; process.stdout.write(walk(d));" "$RUNNER_TEMP/hosting-channel.json")"
+          if [[ -z "$PREVIEW_URL" ]]; then
+            cat "$RUNNER_TEMP/hosting-channel.json"
+            echo "::error::Could not determine the Firebase Hosting preview URL."
+            exit 1
+          fi
+          echo "url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+          echo "Preview URL: $PREVIEW_URL"
+
+      - name: Install Playwright
+        run: npm install --no-save --no-package-lock @playwright/test
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke and passenger-to-driver acceptance tests
+        env:
+          TAXICONNECT_BASE_URL: ${{ steps.preview.outputs.url }}
+          TAXICONNECT_TEST_PASSWORD: ${{ secrets.TAXICONNECT_TEST_PASSWORD }}
+        run: npx playwright test --config=tests/e2e/playwright.config.js
+
+      - name: Upload Playwright evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taxiconnect-playwright-acceptance-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Delete temporary Hosting preview
+        if: always()
+        run: npx --yes firebase-tools@latest hosting:channel:delete "e2e-${GITHUB_RUN_ID}" --project taxiconnect-dev --force --non-interactive || true
