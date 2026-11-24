@@ -75,9 +75,15 @@ test("passenger assignment and conductor taxi selection are connected", () => {
   assert.match(passenger, /assignedTaxiId/);
   assert.match(conductor, /async function assignTaxi\(waitId\)/);
   assert.match(conductor, /status: 'assigned'/);
-  assert.match(conductor, /freeSeats < Number\(passenger\.groupSize \|\| 1\)/);
+  assert.match(conductor, /assignmentRef\.transaction/);
+  assert.match(conductor, /remaining < groupSize/);
+  assert.match(conductor, /taxiAssignments/);
   assert.match(conductor, /requeueAssignment/);
   assert.match(conductor, /taxi.status !== 'offline'/);
+  assert.match(driver, /async function confirmGroupPickup/);
+  assert.match(driver, /passengersOnboard: onboardAfterPickup/);
+  assert.match(driver, /taxiAssignments/);
+  assert.match(passenger, /confirmed pickup/);
   assert.match(driver, /status: 'offline'/);
   assert.match(passenger, /t.status !== 'offline'/);
 });
