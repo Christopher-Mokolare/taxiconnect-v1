@@ -45,6 +45,7 @@ test("database rules enforce role and passenger ownership boundaries", () => {
   assert.match(rules.taxis["$taxiId"][".validate"], /offline/);
   assert.match(rules.waitingPassengers["$waitId"][".write"], /passengerId/);
   assert.match(rules.waitingPassengers["$waitId"][".read"], /auth.uid/);
+  assert.match(rules.waitingPassengers["$waitId"][".validate"], /data.exists\(\) \? newData.child\('timestamp'\).val\(\) === data.child\('timestamp'\).val\(\)/);
   assert.match(rules.passengerWaiting["$uid"][".read"], /auth.uid/);
   assert.match(rules.summons[".read"], /isDriver/);
   assert.match(rules.summons["$route"][".write"], /isConductor/);
