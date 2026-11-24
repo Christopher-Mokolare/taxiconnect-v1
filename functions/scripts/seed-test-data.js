@@ -113,7 +113,16 @@ async function main() {
   console.log("Remove test records and accounts manually when testing is complete.");
 }
 
-main().catch(error => {
-  console.error("Test data setup failed:", error.message);
-  process.exitCode = 1;
-});
+main()
+  .catch(error => {
+    console.error("Test data setup failed:", error.message);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    // Close Admin SDK connections so CI does not wait on an open RTDB socket.
+    try {
+      await admin.app().delete();
+    } catch (error) {
+      console.error("Could not close Firebase Admin app cleanly:", error.message);
+    }
+  });
