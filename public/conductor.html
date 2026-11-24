@@ -460,39 +460,52 @@ async function assignTaxi(waitId) {
 
     const taxiSnap = await db.ref('taxis/' + taxiId).once('value');
     const taxi = taxiSnap.val();
-    const assignedSeats = Object.entries(allWaiting)
-      .filter(([id, item]) => item.assignedTaxiId === taxiId && item.status === 'assigned' &&
-        allAssignments[taxiId]?.[id]?.status !== 'pickedUp')
-      .reduce((total, [, item]) => total + Number(item.groupSize || 1), 0);
-    const freeSeats = taxi
-      ? Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0) - assignedSeats
-      : 0;
-    if (!taxi || taxi.route !== passenger.route || taxi.status === 'breakdown' || taxi.status === 'offline' ||
-        freeSeats < Number(passenger.groupSize || 1)) {
-      throw new Error('That taxi does not have enough unreserved seats. Refresh and choose another.');
+    if (!taxi || taxi.route !== passenger.route || taxi.status === 'breakdown' || taxi.status === 'offline') {
+      throw new Error('That taxi is not available for this route. Refresh and choose another.');
     }
 
+    const groupSize = Number(passenger.groupSize || 1);
     const groupCode = waitId.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase();
-    const assignedAt = firebase.database.ServerValue.TIMESTAMP;
-    const updates = {};
-    updates['waitingPassengers/' + waitId] = {
-      ...passenger,
-      status: 'assigned',
-      assignedTaxiId: taxiId,
-      assignedAt,
-      groupCode
-    };
-    updates['taxiAssignments/' + taxiId + '/' + waitId] = {
+    const assignedAt = Date.now();
+    const assignment = {
       waitId,
       passengerId: passenger.passengerId,
       driverName: taxi.driverName || 'Driver',
       route: passenger.route,
-      groupSize: Number(passenger.groupSize || 1),
+      groupSize,
       groupCode,
       status: 'assigned',
       assignedAt
     };
-    await db.ref().update(updates);
+
+    // Reserve seats in a transaction so two dispatchers cannot allocate the same remaining seats.
+    const assignmentRef = db.ref('taxiAssignments/' + taxiId);
+    const reservation = await assignmentRef.transaction(current => {
+      const groups = current || {};
+      const reserved = Object.values(groups)
+        .filter(group => group.status === 'assigned')
+        .reduce((total, group) => total + Number(group.groupSize || 1), 0);
+      const remaining = Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0) - reserved;
+      if (remaining < groupSize || groups[waitId]) return;
+      groups[waitId] = assignment;
+      return groups;
+    });
+
+    if (!reservation.committed) {
+      throw new Error('That taxi no longer has enough unreserved seats. Refresh and choose another.');
+    }
+
+    try {
+      await passengerRef.update({
+        status: 'assigned',
+        assignedTaxiId: taxiId,
+        assignedAt,
+        groupCode
+      });
+    } catch (writeError) {
+      await db.ref('taxiAssignments/' + taxiId + '/' + waitId).remove();
+      throw writeError;
+    }
   } catch (error) {
     console.error('Taxi assignment failed:', error);
     alert(error?.message || 'Could not assign this taxi.');
