@@ -136,6 +136,7 @@ const defaultFirebaseApp = firebase.apps.find(app => app.name === '[DEFAULT]')
 const db = firebase.database(defaultFirebaseApp);
 let selectedRoute = 'SUN_CITY', capacity = 14, onboard = 0, liveOnboard = 0;
 let myTaxiId = null, myCapacity = 14, summonsRef = null, heartbeatTimer = null;
+let connectionRef = null, connectionSessionId = null, connectionListener = null;
 
 // ── Auth ──────────────────────────────────────────────────────────
 let driverName = '';
@@ -413,6 +414,7 @@ async function goOffline() {
     throw new Error('You do not own this taxi.');
   }
   if (taxi) await ref.update({ status: 'offline', lastUpdated: firebase.database.ServerValue.TIMESTAMP });
+  await stopTaxiConnection();
   stopHeartbeat();
   myTaxiId = null;
   onboard = 0;
@@ -423,9 +425,48 @@ async function goOffline() {
   document.getElementById('liveCard').style.display = 'none';
 }
 
+async function registerTaxiConnection() {
+  const user = firebase.auth().currentUser;
+  if (!user || !myTaxiId) return;
+  if (!connectionSessionId) connectionSessionId = db.ref('taxiConnections/' + myTaxiId).push().key;
+  if (!connectionRef) connectionRef = db.ref('taxiConnections/' + myTaxiId + '/' + connectionSessionId);
+  if (!connectionListener) connectionListener = db.ref('.info/connected');
+
+  connectionListener.off('value');
+  connectionListener.on('value', async snapshot => {
+    if (snapshot.val() !== true || !connectionRef) return;
+    try {
+      // Register the server-side cleanup before publishing this session as connected.
+      await connectionRef.onDisconnect().remove();
+      await connectionRef.set({
+        connectedAt: firebase.database.ServerValue.TIMESTAMP,
+        lastSeen: firebase.database.ServerValue.TIMESTAMP
+      });
+    } catch (error) {
+      console.error('Could not register taxi connection presence:', error);
+    }
+  });
+}
+
+async function stopTaxiConnection() {
+  if (connectionListener) connectionListener.off('value');
+  connectionListener = null;
+  if (connectionRef) {
+    try {
+      await connectionRef.onDisconnect().cancel();
+      await connectionRef.remove();
+    } catch (error) {
+      console.error('Could not clear taxi connection presence:', error);
+    }
+  }
+  connectionRef = null;
+  connectionSessionId = null;
+}
+
 function startHeartbeat() {
   stopHeartbeat();
   if (!myTaxiId) return;
+  registerTaxiConnection();
   heartbeatTimer = window.setInterval(async () => {
     const user = firebase.auth().currentUser;
     if (!user || !myTaxiId) return;
@@ -435,17 +476,20 @@ function startHeartbeat() {
       const taxi = snapshot.val();
       if (!taxi || taxi.driverId !== user.uid) {
         stopHeartbeat();
+        await stopTaxiConnection();
         myTaxiId = null;
         document.getElementById('checkInCard').style.display = 'block';
         document.getElementById('liveCard').style.display = 'none';
         return;
       }
-      await ref.update({ lastUpdated: firebase.database.ServerValue.TIMESTAMP });
-      await db.ref('drivers/' + user.uid + '/lastSeen').set(firebase.database.ServerValue.TIMESTAMP);
+      const writes = [ref.update({ lastUpdated: firebase.database.ServerValue.TIMESTAMP }),
+        db.ref('drivers/' + user.uid + '/lastSeen').set(firebase.database.ServerValue.TIMESTAMP)];
+      if (connectionRef) writes.push(connectionRef.update({ lastSeen: firebase.database.ServerValue.TIMESTAMP }));
+      await Promise.all(writes);
     } catch (error) {
       console.error('Driver heartbeat failed:', error);
     }
-  }, 5 * 60 * 1000);
+  }, 30 * 1000);
 }
 
 function stopHeartbeat() {
