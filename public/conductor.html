@@ -265,7 +265,7 @@ async function publishDemandSummary() {
   if (signature === lastDemandSignature) return;
   const summary = {};
   groups.forEach(group => {
-    const key = encodeURIComponent(group.route + '-' + group.pickupPoint.toLowerCase()).replace(/[.#$\\[\\]/]/g, '_');
+    const key = encodeURIComponent(group.route + '-' + group.pickupPoint.toLowerCase()).replaceAll('.', '%2E');
     summary[key] = { route: group.route, pickupPoint: group.pickupPoint, people: group.people, requests: group.requests, expiresAt: group.expiresAt };
   });
   try {
