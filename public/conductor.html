@@ -479,7 +479,7 @@ async function assignTaxi(waitId) {
       ? Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0) - assignedSeats
       : 0;
     if (!taxi || taxi.route !== passenger.route || taxi.status === 'breakdown' || taxi.status === 'offline' ||
-        !hasLiveConnection(allConnections[taxiId]) || waitingRequestExpiry(passenger) <= Date.now() ||
+        !isTaxiFresh(taxi, allConnections[taxiId]) || waitingRequestExpiry(passenger) <= Date.now() ||
         freeSeats < Number(passenger.groupSize || 1)) {
       throw new Error('That taxi does not have enough unreserved seats. Refresh and choose another.');
     }
