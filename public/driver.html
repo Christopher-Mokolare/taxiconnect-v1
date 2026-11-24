@@ -136,7 +136,7 @@ const defaultFirebaseApp = firebase.apps.find(app => app.name === '[DEFAULT]')
 const db = firebase.database(defaultFirebaseApp);
 let selectedRoute = 'SUN_CITY', capacity = 14, onboard = 0, liveOnboard = 0;
 let myTaxiId = null, myCapacity = 14, summonsRef = null, heartbeatTimer = null;
-let connectionRef = null, connectionSessionId = null, connectionListener = null;
+let connectionRef = null, connectionSessionId = null, connectionListener = null, demandRef = null, currentRouteDemand = {};
 
 // ── Auth ──────────────────────────────────────────────────────────
 let driverName = '';
@@ -279,6 +279,7 @@ async function restoreMyTaxi() {
 function listenForSummons() {
   if (summonsRef) summonsRef.off('value');
   summonsRef = db.ref(`summons/${selectedRoute}`);
+  listenForRouteDemand();
   summonsRef.on('value', snap => {
     const s = snap.val();
     if (!s || Date.now() - s.timestamp > 5 * 60 * 1000) return;
@@ -290,6 +291,33 @@ function listenForSummons() {
     }
     setTimeout(() => { banner.style.display = 'none'; }, 30000);
   });
+}
+
+function listenForRouteDemand() {
+  if (demandRef) demandRef.off('value');
+  demandRef = db.ref('routeDemand');
+  demandRef.on('value', snapshot => {
+    currentRouteDemand = snapshot.val() || {};
+    renderRouteDemand();
+  }, error => {
+    console.error('Could not load passenger demand:', error);
+  });
+}
+
+function renderRouteDemand() {
+  const banner = document.getElementById('summonBanner');
+  const groups = Object.values(currentRouteDemand).filter(item =>
+    item.route === selectedRoute && Number(item.expiresAt || 0) > Date.now()
+  );
+  if (!groups.length) {
+    if (banner.dataset.kind === 'demand') banner.style.display = 'none';
+    return;
+  }
+  const total = groups.reduce((sum, item) => sum + Number(item.people || 0), 0);
+  const stops = groups.map(item => item.pickupPoint + ': ' + item.people).join(' · ');
+  banner.dataset.kind = 'demand';
+  banner.textContent = '📍 ' + total + ' passengers waiting for ' + routeLabel(selectedRoute) + ' — ' + stops;
+  banner.style.display = 'block';
 }
 
 function requestNotificationPermission() {
@@ -331,7 +359,7 @@ function selectRoute(r) {
   selectedRoute = r;
   document.getElementById('drv-sun').classList.toggle('sel', r === 'SUN_CITY');
   document.getElementById('drv-rust').classList.toggle('sel', r === 'RUSTENBURG');
-  if (firebase.auth().currentUser && sessionStorage.getItem('tc_role') === 'driver') listenForSummons();
+  if (firebase.auth().currentUser && sessionStorage.getItem('tc_role') === 'driver') { listenForSummons(); renderRouteDemand(); }
 }
 
 // ── Go Live / Offline ─────────────────────────────────────────────
@@ -468,6 +496,7 @@ function startHeartbeat() {
   if (!myTaxiId) return;
   registerTaxiConnection();
   heartbeatTimer = window.setInterval(async () => {
+    renderRouteDemand();
     const user = firebase.auth().currentUser;
     if (!user || !myTaxiId) return;
     try {
