@@ -147,8 +147,7 @@ let allTaxis = {}, allWaiting = {}, allAssignments = {};
 let subscribed = false;
 
 // ── Auth ──────────────────────────────────────────────────────────
-// Conductor authentication is handled by Cloud Functions.
-// Staff roles are verified from server-issued Firebase custom claims.
+// Operator access uses Firebase Authentication and server-issued custom claims.
 
 function togglePassword() {
   const input = document.getElementById('passwordInput');
@@ -206,6 +205,7 @@ async function resetPassword() {
 async function signOut() {
   db.ref('taxis').off('value');
   db.ref('waitingPassengers').off('value');
+  db.ref('taxiAssignments').off('value');
   subscribed = false;
   try {
     await firebase.auth().signOut();
