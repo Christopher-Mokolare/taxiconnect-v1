@@ -323,13 +323,60 @@ async function confirmGroupPickup(waitId) {
   if (!myTaxiId || !assignedGroups[waitId]) return;
   const group = assignedGroups[waitId];
   if (group.status !== 'assigned') return;
+  const button = document.querySelector('[data-wait-id="' + waitId + '"] button');
+  if (button) { button.disabled = true; button.textContent = 'Confirming pickup…'; }
+  const taxiRef = db.ref('taxis/' + myTaxiId);
+  const assignmentRef = db.ref('taxiAssignments/' + myTaxiId + '/' + waitId);
+  const groupSize = Number(group.groupSize || 1);
+  const userId = firebase.auth().currentUser?.uid;
+  let onboardAfterPickup = null;
   try {
-    await db.ref('taxiAssignments/' + myTaxiId + '/' + waitId).update({
-      status: 'pickedUp',
-      pickedUpAt: firebase.database.ServerValue.TIMESTAMP
+    const transaction = await taxiRef.transaction(current => {
+      if (!current || current.driverId !== userId) return;
+      const currentOnboard = Number(current.passengersOnboard || 0);
+      const capacityNow = Number(current.capacity || myCapacity || 14);
+      if (currentOnboard + groupSize > capacityNow) return;
+      onboardAfterPickup = currentOnboard + groupSize;
+      return {
+        ...current,
+        passengersOnboard: onboardAfterPickup,
+        status: onboardAfterPickup >= capacityNow ? 'full' : 'loading',
+        lastUpdated: Date.now()
+      };
     });
+    if (!transaction.committed) {
+      throw new Error('There are not enough remaining seats to confirm this group. Update the taxi count or ask the operator to reassign the group.');
+    }
+
+    try {
+      await assignmentRef.update({
+        status: 'pickedUp',
+        pickedUpAt: firebase.database.ServerValue.TIMESTAMP
+      });
+    } catch (assignmentError) {
+      await taxiRef.transaction(current => {
+        if (!current || current.driverId !== userId) return;
+        const restoredCount = Math.max(0, Number(current.passengersOnboard || 0) - groupSize);
+        return {
+          ...current,
+          passengersOnboard: restoredCount,
+          status: restoredCount >= Number(current.capacity || myCapacity) ? 'full' : 'loading',
+          lastUpdated: Date.now()
+        };
+      });
+      throw assignmentError;
+    }
+
+    liveOnboard = onboardAfterPickup;
+    onboard = onboardAfterPickup;
+    document.getElementById('liveVal').textContent = liveOnboard;
+    document.getElementById('onboardVal').textContent = liveOnboard;
+    document.getElementById('liveNeedsNum').textContent = Math.max(0, myCapacity - liveOnboard);
+    document.getElementById('liveNeedsLbl').textContent = liveOnboard >= myCapacity ? 'TAXI IS FULL' : 'passengers needed';
+    document.getElementById('liveNeedsBox').className = 'needs-box ' + (liveOnboard >= myCapacity ? 'nb-full' : 'nb-loading');
   } catch (error) {
     console.error('Pickup confirmation failed:', error);
+    if (button) { button.disabled = false; button.textContent = 'Confirm pickup'; }
     alert(error?.message || 'Could not confirm this pickup.');
   }
 }
