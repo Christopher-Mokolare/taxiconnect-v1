@@ -304,9 +304,10 @@ function renderWaiting() {
   if (!entries.length) { el.innerHTML = '<div class="empty">No passengers waiting.</div>'; return; }
   el.innerHTML = entries.map(([id,w]) => {
     const matchingTaxis = Object.entries(allTaxis).filter(([taxiId,taxi]) => {
-      const alreadyAssigned = Object.values(allWaiting)
-        .filter(passenger => passenger.status === 'assigned' && passenger.assignedTaxiId === taxiId)
-        .reduce((total, passenger) => total + Number(passenger.groupSize || 1), 0);
+      const alreadyAssigned = Object.entries(allWaiting)
+        .filter(([waitId, passenger]) => passenger.status === 'assigned' && passenger.assignedTaxiId === taxiId &&
+          allAssignments[taxiId]?.[waitId]?.status !== 'pickedUp')
+        .reduce((total, [, passenger]) => total + Number(passenger.groupSize || 1), 0);
       const freeSeats = Number(taxi.capacity || 14) -
         Number(taxi.passengersOnboard || 0) - alreadyAssigned;
       return taxi.route === w.route && taxi.status !== 'breakdown' && taxi.status !== 'offline' &&
@@ -325,9 +326,10 @@ function renderWaiting() {
         ? '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">' +
           '<select id="assign-' + escapeHtml(id) + '" aria-label="Choose taxi for passenger" style="flex:1;min-width:0;padding:8px;border:1px solid #ddd;border-radius:7px">' +
           matchingTaxis.map(([taxiId,taxi]) => {
-            const reserved = Object.values(allWaiting)
-              .filter(item => item.status === 'assigned' && item.assignedTaxiId === taxiId)
-              .reduce((total, item) => total + Number(item.groupSize || 1), 0);
+            const reserved = Object.entries(allWaiting)
+              .filter(([waitId, item]) => item.status === 'assigned' && item.assignedTaxiId === taxiId &&
+                allAssignments[taxiId]?.[waitId]?.status !== 'pickedUp')
+              .reduce((total, [, item]) => total + Number(item.groupSize || 1), 0);
             const available = Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0) - reserved);
             return '<option value="' + escapeHtml(taxiId) + '">' +
               escapeHtml(taxi.driverName || 'Driver') + ' · ' + available + ' unreserved seats</option>';
@@ -458,9 +460,10 @@ async function assignTaxi(waitId) {
 
     const taxiSnap = await db.ref('taxis/' + taxiId).once('value');
     const taxi = taxiSnap.val();
-    const assignedSeats = Object.values(allWaiting)
-      .filter(item => item.assignedTaxiId === taxiId && item.status === 'assigned')
-      .reduce((total, item) => total + Number(item.groupSize || 1), 0);
+    const assignedSeats = Object.entries(allWaiting)
+      .filter(([id, item]) => item.assignedTaxiId === taxiId && item.status === 'assigned' &&
+        allAssignments[taxiId]?.[id]?.status !== 'pickedUp')
+      .reduce((total, [, item]) => total + Number(item.groupSize || 1), 0);
     const freeSeats = taxi
       ? Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0) - assignedSeats
       : 0;
