@@ -108,7 +108,7 @@ if (!window.TAXICONNECT_CONFIGURED) throw new Error('Firebase Web App configurat
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 let selectedRoute = 'SUN_CITY', groupSize = 1;
-let myWaitId = null, myWaitRef = null, myAssignedTaxiRef = null, myAssignmentRef = null, myCurrentAssignment = null, myAssignedTaxiUnavailable = false, allTaxis = {};
+let myWaitId = null, myWaitRef = null, myWaitIndexRef = null, myAssignedTaxiRef = null, myAssignmentRef = null, myCurrentAssignment = null, myAssignedTaxiUnavailable = false, allTaxis = {};
 
 // ── Auth ──────────────────────────────────────────────────────────
 let taxisSubscribed = false;
@@ -292,7 +292,9 @@ async function cancelWaiting() {
     await db.ref().update(updates);
     myWaitId = null;
     if (myWaitRef) myWaitRef.off('value');
+    if (myWaitIndexRef) myWaitIndexRef.off('value');
     myWaitRef = null;
+    myWaitIndexRef = null;
     syncWaitControls();
     renderWaitStatus(null);
   } catch (error) {
@@ -383,13 +385,30 @@ function syncWaitControls() {
 
 function watchMyWaitingSignal() {
   if (myWaitRef) myWaitRef.off('value');
+  if (myWaitIndexRef) myWaitIndexRef.off('value');
   myWaitRef = null;
+  myWaitIndexRef = null;
   if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
   myAssignedTaxiRef = null;
   const user = firebase.auth().currentUser;
   if (!user || !myWaitId) return;
 
   const watchedId = myWaitId;
+  myWaitIndexRef = db.ref('passengerWaiting/' + user.uid);
+  myWaitIndexRef.on('value', snapshot => {
+    // The operator can close the passenger's queue record when the trip departs.
+    // The passenger-owned index remains readable even after the waiting record is deleted.
+    if (snapshot.val() !== watchedId && myWaitId === watchedId) {
+      myWaitId = null;
+      if (myWaitRef) myWaitRef.off('value');
+      myWaitRef = null;
+      if (myWaitIndexRef) myWaitIndexRef.off('value');
+      myWaitIndexRef = null;
+      syncWaitControls();
+      renderWaitStatus(null);
+    }
+  }, error => console.error('Passenger waiting index listener failed:', error));
+
   myWaitRef = db.ref('waitingPassengers/' + watchedId);
   myWaitRef.on('value', async snapshot => {
     const record = snapshot.val();
@@ -399,6 +418,8 @@ function watchMyWaitingSignal() {
       renderWaitStatus(null);
       if (myWaitRef) myWaitRef.off('value');
       myWaitRef = null;
+      if (myWaitIndexRef) myWaitIndexRef.off('value');
+      myWaitIndexRef = null;
       return;
     }
     await renderWaitStatus(record);
