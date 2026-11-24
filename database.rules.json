@@ -50,7 +50,7 @@
       ".read": "auth != null && auth.token.isConductor === true",
       "$waitId": {
         ".read": "auth != null && (auth.token.isConductor === true || data.child('passengerId').val() === auth.uid)",
-        ".write": "auth != null && (auth.token.isConductor === true || (auth.token.firebase.sign_in_provider === 'anonymous' && ((!data.exists() && newData.child('passengerId').val() === auth.uid) || (data.child('passengerId').val() === auth.uid && !newData.exists()))))",
+        ".write": "auth != null && (auth.token.isConductor === true || (auth.token.firebase.sign_in_provider === 'anonymous' && ((!data.exists() && newData.child('passengerId').val() === auth.uid && root.child('passengerWaiting').child(auth.uid).val() === $waitId) || (data.child('passengerId').val() === auth.uid && !newData.exists()))))",
         ".validate": "!newData.exists() || (newData.hasChildren(['route','groupSize','timestamp','passengerId','status']) && newData.child('passengerId').isString() && (!newData.child('pickupPoint').exists() || (newData.child('pickupPoint').isString() && newData.child('pickupPoint').val().length <= 80)) && (!newData.child('expiresAt').exists() || (newData.child('expiresAt').isNumber() && newData.child('expiresAt').val() > now && newData.child('expiresAt').val() <= now + 3600000)) && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('groupSize').isNumber() && newData.child('groupSize').val() >= 1 && newData.child('groupSize').val() <= 10 && newData.child('timestamp').isNumber() && newData.child('timestamp').val() <= now + 5000 && newData.child('timestamp').val() >= now - 60000 && ((newData.child('status').val() === 'waiting' && !newData.child('assignedTaxiId').exists() && !newData.child('assignedAt').exists()) || (newData.child('status').val() === 'assigned' && newData.child('assignedTaxiId').isString() && root.child('taxis').child(newData.child('assignedTaxiId').val()).exists() && root.child('taxis').child(newData.child('assignedTaxiId').val()).child('route').val() === newData.child('route').val() && root.child('taxis').child(newData.child('assignedTaxiId').val()).child('status').val() !== 'breakdown' && newData.child('assignedAt').isNumber() && newData.child('assignedAt').val() <= now + 5000 && newData.child('assignedAt').val() >= now - 60000)))",
         "route": {
           ".validate": "newData.val() === 'SUN_CITY' || newData.val() === 'RUSTENBURG'"
@@ -87,7 +87,7 @@
     "passengerWaiting": {
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.token.isConductor === true)",
-        ".write": "auth != null && (auth.uid === $uid && auth.token.firebase.sign_in_provider === 'anonymous' || auth.token.isConductor === true)",
+        ".write": "auth != null && (auth.token.isConductor === true || (auth.uid === $uid && auth.token.firebase.sign_in_provider === 'anonymous' && (!newData.exists() || !data.exists() || (root.child('waitingPassengers').child(data.val()).child('status').val() !== 'waiting' && root.child('waitingPassengers').child(data.val()).child('status').val() !== 'assigned') || (root.child('waitingPassengers').child(data.val()).child('expiresAt').isNumber() && root.child('waitingPassengers').child(data.val()).child('expiresAt').val() <= now) || (!root.child('waitingPassengers').child(data.val()).child('expiresAt').exists() && root.child('waitingPassengers').child(data.val()).child('timestamp').val() <= now - 2700000))))",
         ".validate": "!newData.exists() || newData.isString()"
       }
     },
