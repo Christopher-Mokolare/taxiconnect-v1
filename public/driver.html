@@ -22,7 +22,7 @@
   body{font-family:-apple-system,sans-serif;background:#f0f2f5;min-height:100vh}
   header{background:#1a1a2e;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
   header h1{font-size:16px}
-  .btn-link{background:none;border:1px solid rgba(255,255,255,.3);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+  .btn-link{display:inline-block;text-decoration:none;background:none;border:1px solid rgba(255,255,255,.3);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
   .screen{display:none;padding:12px;max-width:420px;margin:0 auto}
   .screen.active{display:block}
   .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
@@ -62,6 +62,7 @@
 <body>
 <header>
   <h1>🚗 TaxiConnect — Driver</h1>
+  <a class="btn-link" href="/" aria-label="Return to TaxiConnect home">← Home</a>
   <button class="btn-link" id="signOutBtn" onclick="signOut()" style="display:none">Sign Out</button>
 </header>
 
