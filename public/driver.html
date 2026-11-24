@@ -53,6 +53,9 @@
   #recaptcha-container{margin-top:10px}
   .spinner{display:inline-block;width:16px;height:16px;border:2px solid #ddd;border-top-color:#28a745;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
   @keyframes spin{to{transform:rotate(360deg)}}
+  .password-row{display:flex;gap:8px;align-items:stretch;margin-top:6px}
+  .password-row input{flex:1;min-width:0;margin-top:0!important}
+  .password-toggle{border:1px solid #cbd5e1;background:#f8fafc;color:#10243a;border-radius:9px;padding:0 13px;font-weight:700;cursor:pointer}
 </style>
 <link rel="stylesheet" href="/css/taxiconnect-theme.css">
 </head>
@@ -70,7 +73,7 @@
     <label for="emailInput" style="display:block;font-size:12px;color:#666;margin-top:8px">Email address</label>
     <input type="email" id="emailInput" autocomplete="username" placeholder="name@example.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:6px" />
     <label for="passwordInput" style="display:block;font-size:12px;color:#666;margin-top:10px">Password</label>
-    <input type="password" id="passwordInput" autocomplete="current-password" placeholder="Your password" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-top:6px" />
+    <div class="password-row"><input type="password" id="passwordInput" autocomplete="current-password" placeholder="Your password" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:16px" /><button class="password-toggle" type="button" aria-controls="passwordInput" aria-pressed="false" onclick="togglePasswordVisibility()">Show</button></div>
     <button class="btn btn-green" onclick="staffLogin()">Enter App</button>
     <button type="button" class="btn" style="background:transparent;color:#536174;border:1px solid #d5dce5;margin-top:6px" onclick="resetPassword()">Forgot password?</button>
   </div>
@@ -125,14 +128,24 @@
 </div>
 
 <script>
-if (!window.TAXICONNECT_CONFIGURED) throw new Error('Firebase Web App configuration is incomplete. See the setup warning above.');
-firebase.initializeApp(FIREBASE_CONFIG);
+if (!window.TAXICONNECT_CONFIGURED || !window.FIREBASE_CONFIG) throw new Error('Firebase Web App configuration is incomplete. Check /firebase-config.js.');
+if (!window.firebase || typeof firebase.initializeApp !== 'function') throw new Error('Firebase SDK failed to load. Check the Firebase CDN scripts and browser network connection.');
+if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
 const db = firebase.database();
 let selectedRoute = 'SUN_CITY', capacity = 14, onboard = 0, liveOnboard = 0;
 let myTaxiId = null, myCapacity = 14, summonsRef = null, heartbeatTimer = null;
 
 // ── Auth ──────────────────────────────────────────────────────────
 let driverName = '';
+
+function togglePasswordVisibility() {
+  const input = document.getElementById('passwordInput');
+  const button = document.querySelector('.password-toggle');
+  const visible = input.type === 'password';
+  input.type = visible ? 'text' : 'password';
+  button.textContent = visible ? 'Hide' : 'Show';
+  button.setAttribute('aria-pressed', String(visible));
+}
 
 // Driver access is verified using server-issued Firebase custom claims.
 
