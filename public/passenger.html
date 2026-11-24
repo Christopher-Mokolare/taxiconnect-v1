@@ -196,7 +196,7 @@ function renderTaxis() {
   }
   el.innerHTML = taxis.map(([taxiId, taxi]) => {
     const sessions = allConnections[taxiId] || {};
-    const connected = hasLiveConnection(sessions);
+    const connected = isTaxiFresh(taxi, sessions);
     const connectionLabel = taxiConnectionLabel(taxi, sessions);
     const seats = Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0));
     let badge;
