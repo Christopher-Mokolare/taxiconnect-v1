@@ -31,6 +31,9 @@
   .btn-green{background:#28a745;color:#fff}
   .btn-red{background:#dc3545;color:#fff}
   .btn-blue{background:#007bff;color:#fff}
+  .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700}
+  .b-green{background:#d4edda;color:#155724}
+  .b-orange{background:#fff3cd;color:#856404}
   input[type=tel],input[type=text]{width:100%;padding:11px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:6px}
   .otp-input{letter-spacing:8px;font-size:22px;text-align:center}
   .route-row{display:flex;gap:8px;margin-top:8px}
@@ -297,7 +300,7 @@ function renderAssignedGroups() {
   el.innerHTML = entries.map(([waitId, group]) => {
     const pickedUp = group.status === 'pickedUp';
     return '<div class="taxi-row" data-testid="driver-assigned-group" data-wait-id="' + escapeHtml(waitId) + '">' +
-      '<div class="row-header"><strong>Group #' + escapeHtml(group.groupCode || waitId.slice(-6).toUpperCase()) + '</strong>' +
+      '<div class="row-header"><strong>Group #' + escapeHtml(group.groupCode || waitId.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase()) + '</strong>' +
       '<span class="badge ' + (pickedUp ? 'b-green' : 'b-orange') + '">' + (pickedUp ? 'PICKED UP' : 'AWAITING PICKUP') + '</span></div>' +
       '<div class="meta">' + escapeHtml(routeLabel(group.route)) + ' · ' + Number(group.groupSize || 1) + ' passenger(s)</div>' +
       (pickedUp ? '<div class="meta" style="color:#146c43;font-weight:700">Pickup confirmed.</div>' :
