@@ -29,7 +29,7 @@ test("shared text rendering escapes HTML-sensitive characters", () => {
 test("role pages use Realtime Database directly without callable Functions", () => {
   for (const page of ["public/conductor.html", "public/driver.html", "public/passenger.html"]) {
     const html = read(page);
-    assert.match(html, /firebase\.database\(\)/);
+    assert.match(html, /firebase\.database\(\s*(?:defaultFirebaseApp\s*)?\)/);
     assert.match(html, /\.ref\(/);
     assert.doesNotMatch(html, /httpsCallable|firebase-functions-compat/);
   }

@@ -144,8 +144,9 @@
 <script>
 if (!window.TAXICONNECT_CONFIGURED || !window.FIREBASE_CONFIG) throw new Error('Firebase Web App configuration is incomplete. Check /firebase-config.js.');
 if (!window.firebase || typeof firebase.initializeApp !== 'function') throw new Error('Firebase SDK failed to load. Check the Firebase CDN scripts and browser network connection.');
-if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
-const db = firebase.database();
+const defaultFirebaseApp = firebase.apps.find(app => app.name === '[DEFAULT]')
+  || firebase.initializeApp(window.FIREBASE_CONFIG);
+const db = firebase.database(defaultFirebaseApp);
 let allTaxis = {}, allWaiting = {};
 let subscribed = false;
 
