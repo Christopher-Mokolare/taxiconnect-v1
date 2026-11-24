@@ -1,0 +1,58 @@
+name: TaxiConnect V1 CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - main
+      - "feat/**"
+      - "fix/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taxiconnect-v1-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate V1 application
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install Firebase Admin tooling dependencies
+        run: npm ci
+        working-directory: functions
+
+      - name: Check administrative provisioning and retained backend syntax
+        run: npm run check
+        working-directory: functions
+
+      - name: Validate Firebase configuration and web scripts
+        run: node scripts/validate.js
+
+      - name: Check guarded deployment script syntax
+        run: bash -n scripts/deploy.sh
+
+      - name: Run application smoke tests
+        run: node --test tests/*.test.js
+
+      - name: Install Firebase rules test SDKs
+        run: npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
+        working-directory: functions
+
+      - name: Test Realtime Database security rules in emulator
+        run: npx --yes firebase-tools@latest emulators:exec --project taxiconnect-dev --only database "node scripts/test-database-rules.js"

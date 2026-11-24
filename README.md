@@ -1,46 +1,41 @@
-# TaxiConnect V1 — Legacy Archive
+# TaxiConnect V1
 
-**Status: ARCHIVED — reference only. Not for production deployment.**
+TaxiConnect V1 is a Firebase-based taxi coordination web application for the Sun City (Sun Village) and Rustenburg (Town) routes. It is kept separate from TaxiConnect V2 and is designed for Firebase's Spark plan.
 
-This repository contains the historical TaxiConnect Flutter application,
-Firebase backend snapshots, and early web implementation.
+## Web application
 
-## Contents
+- Passenger web app: `/passenger.html`
+- Driver web app: `/driver.html`
+- Conductor dashboard: `/conductor.html`
+- Public role selector: `/`
 
-- `archive/flutter-app/` — archived Flutter application.
-- `backup_20260909_132122/` — historical Firebase Functions, database rules,
-  and early web application.
-- `backup_*` directories — historical Firebase and early-web implementation
-  snapshots from September 2026.
+## Core workflows
 
-## Important compatibility warning
+- Passengers see live taxi availability, send a waiting signal, see conductor taxi assignments and cancel their own signal.
+- Drivers sign in with individual staff accounts, go live, share available seats, update passenger counts, receive route summons and go offline without deleting their taxi record or stranding assigned passenger groups.
+- Conductors monitor live supply and demand, summon drivers, assign available taxis to waiting passengers, recover assignments when a taxi goes offline, manage taxi status and clean stale records.
+- Passenger and driver sessions restore their active waiting/taxi state after a page refresh.
 
-The legacy application uses a data model based on:
+## Architecture
 
-- `village`
-- `destination`
-- `destinationCategory`
-- `seatsAvailable`
+The active web application uses Firebase Hosting, Firebase Authentication and Realtime Database. Browser actions write to Realtime Database directly, with role and ownership checks enforced by `database.rules.json`. The active Firebase deployment has only `database` and `hosting` targets; it does not deploy Cloud Functions or require a Blaze upgrade.
 
-The later TaxiConnect platform uses a route-first model with concepts such as
-routes, capacity, passengers onboard, trips, and dispatch.
+Staff roles are assigned with the Admin SDK provisioning utility in `functions/scripts/provision-staff.js`. The old `functions/index.js` callable implementation is retained for reference only and is not deployed.
 
-These models are not interchangeable.
+## Project structure
 
-**Do not connect this archived application to a newer TaxiConnect database
-or production environment without a separately reviewed migration.**
+- `public/` — responsive role-based web application and Firebase client configuration.
+- `public/js/app-common.js` — shared route labels, time formatting and safe text rendering.
+- `database.rules.json` — Realtime Database security rules.
+- `scripts/validate.js` — repository, configuration and browser-script validation.
+- `tests/app.test.js` — Node smoke tests for routes, auth wiring and database security boundaries.
+- `scripts/test-database-rules.js` — Firebase Realtime Database Emulator authorization tests.
+- `functions/scripts/provision-staff.js` — local Admin SDK utility for assigning staff roles.
+- `functions/scripts/seed-test-data.js` — guarded Admin SDK utility that creates fake staff accounts and sample taxis in the development project only.
+- `archive/flutter-app/` and `backup_*/` — historical source retained for reference, not part of the active web deployment.
 
-## Development guidance
+## Getting started
 
-This repository is preserved for historical reference and recovery.
+Follow [DEPLOYMENT.md](DEPLOYMENT.md) to configure Firebase, enable the required Authentication providers, provision staff roles and deploy Hosting plus Realtime Database rules. The guarded deployment command is `bash scripts/deploy.sh`.
 
-- Do not extend it as the active TaxiConnect product.
-- Do not deploy its Firebase Functions or database rules.
-- Do not assume historical credentials or Firebase configuration are valid.
-- Do not copy its schema or authentication assumptions into a newer version
-  without reviewing compatibility.
-
-## Project separation
-
-The newer Cloudflare Workers, D1, Durable Objects, and PWA implementation
-belongs in the separate TaxiConnect V2 repository.
+**Development setup:** the TaxiConnect-Dev Web App configuration is committed and Anonymous plus Email/Password Authentication have been enabled. The remaining development gates are test staff account provisioning, role claims, publishing and verifying Realtime Database rules, and live end-to-end acceptance. No production release is claimed.

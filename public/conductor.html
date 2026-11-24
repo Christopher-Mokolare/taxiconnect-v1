@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaxiConnect — Conductor</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"
+        integrity="sha384-sEVIly94UBRLKWdkYoPpSG7GD/e79YHMrxVyZaOk712Ga7+EAw6w1EFi+xBzBdd+"
+        crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"
+        integrity="sha384-EkqK+ezBWJuvO3hfrSx2iVqr3YQbhmnzn8kPhOpBZ+0GMVU5oGSgptwIu8D84HjE"
+        crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"
+        integrity="sha384-1/m+A1jVWbD3yiK3/vtFvm1+LjK1WLpSoDY+Kaxppwn/yP9BVSgdHTNQVOjrzUO5"
+        crossorigin="anonymous"></script>
+<script src="/firebase-config.js"></script>
+<script src="/js/app-common.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,sans-serif;background:#f0f2f5;min-height:100vh}
+  header{background:#1a1a2e;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
+  header h1{font-size:16px}
+  .btn-link{background:none;border:1px solid rgba(255,255,255,.3);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+  .screen{display:none;padding:12px;max-width:480px;margin:0 auto}
+  .screen.active{display:block}
+  .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .card h3{font-size:12px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+  .btn{display:block;width:100%;padding:13px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px}
+  .btn-primary{background:#e94560;color:#fff}
+  .btn-green{background:#28a745;color:#fff}
+  .btn-grey{background:#6c757d;color:#fff}
+  input[type=tel],input[type=text]{width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:6px}
+  .otp-input{letter-spacing:8px;font-size:20px;text-align:center}
+  .tabs{display:flex;background:#fff;border-bottom:1px solid #eee}
+  .tab{flex:1;padding:11px;text-align:center;font-size:12px;font-weight:600;color:#888;cursor:pointer;border-bottom:3px solid transparent}
+  .tab.active{color:#e94560;border-bottom-color:#e94560}
+  .tab-panel{display:none;padding:12px;max-width:480px;margin:0 auto}
+  .tab-panel.active{display:block}
+  .route-section{margin-bottom:12px}
+  .route-section h4{font-size:11px;font-weight:700;color:#e94560;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e94560;padding-bottom:5px;margin-bottom:8px}
+  .taxi-row{padding:8px 0;border-bottom:1px solid #f5f5f5}
+  .taxi-row:last-child{border-bottom:none}
+  .row-header{display:flex;justify-content:space-between;align-items:center}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .b-needs{background:#fff3cd;color:#856404}
+  .b-full{background:#d4edda;color:#155724}
+  .b-breakdown{background:#f8d7da;color:#721c24}
+  .b-blue{background:#cce5ff;color:#004085}
+  .meta{font-size:11px;color:#888;margin-top:3px}
+  .action-row{display:flex;gap:5px;margin-top:6px}
+  .action-row button{flex:1;padding:5px;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer}
+  .alert{padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:10px;border-left:4px solid}
+  .a-warn{background:#fff3cd;border-color:#ffc107}
+  .a-danger{background:#f8d7da;border-color:#dc3545}
+  .a-success{background:#d4edda;border-color:#28a745}
+  .empty{color:#aaa;font-size:13px;text-align:center;padding:14px 0}
+  .demand-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
+  .demand-row:last-child{border-bottom:none}
+  #recaptcha-container{margin-top:10px}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid #ddd;border-top-color:#e94560;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .role-row{display:flex;gap:8px;margin-top:8px}
+  .role-btn{flex:1;padding:9px;border:2px solid #ddd;border-radius:8px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;text-align:center}
+  .role-btn.sel{border-color:#e94560;background:#fff0f3;color:#e94560}
+</style>
+<link rel="stylesheet" href="/css/taxiconnect-theme.css">
+</head>
+<body>
+<header>
+  <h1>🎛 TaxiConnect — Conductor</h1>
+  <button class="btn-link" id="signOutBtn" onclick="signOut()" style="display:none">Sign Out</button>
+</header>
+
+<!-- AUTH -->
+<div id="authScreen" class="screen active">
+  <div class="card" style="margin-top:20px">
+    <h3>Conductor sign in</h3>
+    <p style="font-size:13px;color:#666;margin-bottom:4px">Use your approved staff account to access the dashboard.</p>
+    <label for="emailInput" style="display:block;font-size:12px;color:#666;margin-top:8px">Email address</label>
+    <input type="email" id="emailInput" autocomplete="username" placeholder="name@example.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:6px" />
+    <label for="passwordInput" style="display:block;font-size:12px;color:#666;margin-top:10px">Password</label>
+    <input type="password" id="passwordInput" autocomplete="current-password" placeholder="Your password" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:16px;margin-top:6px" />
+    <button class="btn btn-primary" onclick="staffLogin()">Enter Dashboard</button>
+    <button type="button" class="btn" style="background:transparent;color:#536174;border:1px solid #d5dce5;margin-top:6px" onclick="resetPassword()">Forgot password?</button>
+  </div>
+  <div id="authError" class="alert a-danger" style="display:none;margin-top:10px"></div>
+</div>
+
+<!-- APP -->
+<div id="appScreen" class="screen">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('overview')">📊 Overview</div>
+    <div class="tab" onclick="switchTab('taxis')">🚕 Taxis</div>
+    <div class="tab" onclick="switchTab('waiting')">👥 Waiting</div>
+    <div class="tab" onclick="switchTab('manage')">⚙️ Manage</div>
+  </div>
+
+  <div id="tab-overview" class="tab-panel active">
+    <div id="demandAlert" style="display:none;margin-top:10px"></div>
+    <div class="card" style="margin-top:10px">
+      <h3>Live Demand</h3>
+      <div id="demandOverview"><span class="spinner"></span></div>
+    </div>
+    <div class="card">
+      <h3>Notify Drivers</h3>
+      <p style="font-size:12px;color:#666;margin-bottom:8px">Send a browser notification to drivers who have the app open.</p>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="margin-top:0" onclick="notifyRoute('SUN_CITY')">🏘 Alert Sun City Drivers</button>
+        <button class="btn btn-primary" style="margin-top:0;background:#007bff" onclick="notifyRoute('RUSTENBURG')">🏙 Alert Rustenburg Drivers</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-taxis" class="tab-panel">
+    <div class="card" style="margin-top:10px">
+      <h3>Live Taxis</h3>
+      <div id="taxiList"><span class="spinner"></span></div>
+    </div>
+  </div>
+
+  <div id="tab-waiting" class="tab-panel">
+    <div class="card" style="margin-top:10px">
+      <h3>Waiting Passengers</h3>
+      <div id="waitingList"><span class="spinner"></span></div>
+    </div>
+    <div class="card">
+      <h3>Cleanup</h3>
+      <p style="font-size:12px;color:#666;margin-bottom:4px">Remove waiting signals older than 4 hours and taxis inactive for 45 minutes.</p>
+      <button class="btn btn-grey" onclick="cleanupStale()">🧹 Remove Stale Signals</button>
+    </div>
+  </div>
+
+  <div id="tab-manage" class="tab-panel">
+    <div class="card" style="margin-top:10px">
+      <h3>Operational controls</h3>
+      <p style="font-size:12px;color:#666;margin-bottom:4px">Operational records are retained for audit. Individual taxis and waiting signals can be managed from their respective tabs.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+if (!window.TAXICONNECT_CONFIGURED) throw new Error('Firebase Web App configuration is incomplete. See the setup warning above.');
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+let allTaxis = {}, allWaiting = {};
+let subscribed = false;
+
+// ── Auth ──────────────────────────────────────────────────────────
+// Conductor authentication is handled by Cloud Functions.
+// Staff roles are verified from server-issued Firebase custom claims.
+
+async function staffLogin() {
+  const email = document.getElementById('emailInput').value.trim();
+  const password = document.getElementById('passwordInput').value;
+
+  if (!email || !password) {
+    showErr('Enter your staff email and password.');
+    return;
+  }
+
+  try {
+    const credential = await firebase.auth().signInWithEmailAndPassword(email, password);
+    const token = await credential.user.getIdTokenResult(true);
+    if (token.claims.isConductor !== true) {
+      await firebase.auth().signOut();
+      throw new Error('This account has not been assigned the conductor role.');
+    }
+
+    sessionStorage.setItem('tc_role', 'conductor');
+    sessionStorage.setItem('tc_name', credential.user.displayName || email.split('@')[0]);
+    document.getElementById('signOutBtn').style.display = 'block';
+    show('appScreen');
+    subscribe();
+    requestNotificationPermission();
+  } catch (err) {
+    console.error('Conductor sign in failed:', err);
+    showErr(err?.message || 'Could not sign in.');
+  }
+}
+
+async function resetPassword() {
+  const email = document.getElementById('emailInput').value.trim();
+  if (!email) {
+    showErr('Enter your staff email address first.');
+    return;
+  }
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    alert('Password reset instructions have been sent if this account exists.');
+  } catch (error) {
+    console.error('Password reset request failed:', error);
+    alert('If the account exists, password reset instructions will be sent.');
+  }
+}
+
+async function signOut() {
+  db.ref('taxis').off('value');
+  db.ref('waitingPassengers').off('value');
+  subscribed = false;
+  try {
+    await firebase.auth().signOut();
+  } catch (err) {
+    console.error('Sign out failed:', err);
+  }
+
+  sessionStorage.removeItem('tc_role');
+  sessionStorage.removeItem('tc_name');
+  document.getElementById('signOutBtn').style.display = 'none';
+  show('authScreen');
+}
+
+function showErr(m) { const e = document.getElementById('authError'); e.textContent = m; e.style.display = 'block'; }
+
+// Restore the signed-in conductor session
+firebase.auth().onAuthStateChanged(async user => {
+  if (!user || sessionStorage.getItem('tc_role') !== 'conductor') return;
+
+  try {
+    const token = await user.getIdTokenResult();
+    if (token.claims.isConductor !== true) throw new Error('Conductor role claim missing');
+    document.getElementById('signOutBtn').style.display = 'block';
+    show('appScreen');
+    subscribe();
+    requestNotificationPermission();
+  } catch (error) {
+    console.error('Conductor session restore failed:', error);
+    sessionStorage.removeItem('tc_role');
+    sessionStorage.removeItem('tc_name');
+    await firebase.auth().signOut();
+    showErr('This account does not have conductor access. Please sign in again.');
+    show('authScreen');
+  }
+});
+
+function subscribe() {
+  if (subscribed) return;
+  subscribed = true;
+  db.ref('taxis').on('value', s => { allTaxis = s.val() || {}; renderAll(); }, error => showErr(error.message));
+  db.ref('waitingPassengers').on('value', s => { allWaiting = s.val() || {}; renderAll(); }, error => showErr(error.message));
+}
+
+function renderAll() {
+  renderDemand(); renderTaxis(); renderWaiting(); renderAlert();
+}
+
+function renderDemand() {
+  const stats = { SUN_CITY: { taxis:0, waiting:0, seats:0 }, RUSTENBURG: { taxis:0, waiting:0, seats:0 } };
+  Object.values(allTaxis).forEach(t => {
+    if (!stats[t.route] || t.status === 'offline') return;
+    stats[t.route].taxis++;
+    stats[t.route].seats += Math.max(0, (t.capacity||14) - (t.passengersOnboard||0));
+  });
+  Object.values(allWaiting).forEach(w => { if (stats[w.route]) stats[w.route].waiting += (w.groupSize||1); });
+  document.getElementById('demandOverview').innerHTML = Object.entries(stats).map(([r,v]) => `
+    <div class="demand-row">
+      <span style="font-weight:600">${routeLabel(r)}</span>
+      <span>
+        <span class="badge b-blue">🚕 ${v.taxis}</span>
+        <span class="badge b-needs" style="margin-left:4px">👥 ${v.waiting}</span>
+        ${v.taxis ? `<span class="badge" style="margin-left:4px;background:#e2e3e5;color:#383d41">🪑 ${v.seats}</span>` : ''}
+      </span>
+    </div>`).join('');
+}
+
+function renderTaxis() {
+  const el = document.getElementById('taxiList');
+  const entries = Object.entries(allTaxis);
+  if (!entries.length) { el.innerHTML = '<div class="empty">No active taxis.</div>'; return; }
+  el.innerHTML = ['SUN_CITY','RUSTENBURG'].map(route => {
+    const taxis = entries.filter(([,t]) => t.route === route);
+    const rows = taxis.length ? taxis.map(([id,t]) => {
+      const needed = (t.capacity||14) - (t.passengersOnboard||0);
+      const badge = t.status === 'offline' ? `<span class="badge b-breakdown">Offline</span>`
+        : t.status === 'breakdown' ? `<span class="badge b-breakdown">⚠️ Breakdown</span>`
+        : needed <= 0 ? `<span class="badge b-full">✅ Full</span>`
+        : `<span class="badge b-needs">Needs ${needed}</span>`;
+      return `<div class="taxi-row">
+        <div class="row-header"><strong style="font-size:13px">${escapeHtml(t.driverName || "Driver")}</strong>${badge}</div>
+        <div class="meta">${t.passengersOnboard||0}/${t.capacity||14} onboard · ${timeAgo(t.lastUpdated)}</div>
+        <div class="action-row">
+          ${t.status === 'offline' ? '' : `<button onclick="setStatus('${id}','departed')" style="background:#007bff;color:#fff">🚗 Depart</button><button onclick="setStatus('${id}','breakdown')" style="background:#dc3545;color:#fff">⚠️ Breakdown</button>`}
+          <button onclick="removeTaxi('${id}')" style="background:#6c757d;color:#fff">🗑 Remove</button>
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty">No taxis.</div>';
+    return `<div class="route-section"><h4>${routeLabel(route)}</h4>${rows}</div>`;
+  }).join('');
+}
+
+function renderWaiting() {
+  const el = document.getElementById('waitingList');
+  const entries = Object.entries(allWaiting);
+  if (!entries.length) { el.innerHTML = '<div class="empty">No passengers waiting.</div>'; return; }
+  el.innerHTML = entries.map(([id,w]) => {
+    const matchingTaxis = Object.entries(allTaxis).filter(([taxiId,taxi]) => {
+      const alreadyAssigned = Object.values(allWaiting)
+        .filter(passenger => passenger.assignedTaxiId === taxiId)
+        .reduce((total, passenger) => total + Number(passenger.groupSize || 1), 0);
+      const freeSeats = Number(taxi.capacity || 14) -
+        Number(taxi.passengersOnboard || 0) - alreadyAssigned;
+      return taxi.route === w.route && taxi.status !== 'breakdown' && taxi.status !== 'offline' &&
+        freeSeats >= Number(w.groupSize || 1);
+    });
+    const assignedTaxi = w.assignedTaxiId ? allTaxis[w.assignedTaxiId] : null;
+    const assignment = w.status === 'assigned' && (!assignedTaxi || assignedTaxi.status === 'offline' || assignedTaxi.status === 'breakdown')
+      ? '<div class="meta" style="color:#b45309;font-weight:700">Taxi unavailable — this group needs reassignment</div>' +
+        '<button onclick="requeueAssignment(\'' + escapeHtml(id) + '\')" style="margin-top:6px;padding:7px 10px;border:0;border-radius:7px;background:#b45309;color:#fff;font-weight:700;cursor:pointer">Return to waiting queue</button>'
+      : w.status === 'assigned'
+        ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Assigned to ' +
+          escapeHtml(assignedTaxi?.driverName || 'taxi') + '</div>'
+        : matchingTaxis.length
+        ? '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">' +
+          '<select id="assign-' + escapeHtml(id) + '" aria-label="Choose taxi for passenger" style="flex:1;min-width:0;padding:8px;border:1px solid #ddd;border-radius:7px">' +
+          matchingTaxis.map(([taxiId,taxi]) => '<option value="' + escapeHtml(taxiId) + '">' +
+            escapeHtml(taxi.driverName || 'Driver') + ' · ' +
+            Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0)) + ' seats</option>').join('') +
+          '</select><button onclick="assignTaxi(\'' + escapeHtml(id) + '\')" style="padding:8px 12px;border:0;border-radius:7px;background:#146c43;color:#fff;font-weight:700;cursor:pointer">Assign</button></div>'
+        : '<div class="meta">No available taxi on this route yet.</div>';
+    return `
+    <div class="taxi-row">
+      <div class="row-header">
+        <span style="font-size:13px;font-weight:600">${routeLabel(w.route)}</span>
+        <span class="badge b-needs">👥 ${w.groupSize||1}</span>
+      </div>
+      <div class="meta">⏱ ${timeAgo(w.timestamp)}</div>
+      ${assignment}
+      <button onclick="dismiss('${id}')" style="margin-top:8px;padding:4px 10px;border:none;border-radius:6px;background:#6c757d;color:#fff;font-size:11px;font-weight:600;cursor:pointer">Clear signal</button>
+    </div>`;
+  }).join('');
+}
+
+function renderAlert() {
+  const total = Object.values(allWaiting).reduce((s,w) => s + (w.groupSize||1), 0);
+  const el = document.getElementById('demandAlert');
+  if (total >= 3) {
+    el.className = 'alert a-danger'; el.style.display = 'block';
+    el.innerHTML = `🔥 <strong>${total} passengers waiting!</strong> Alert drivers now.`;
+  } else el.style.display = 'none';
+}
+
+// ── Actions ───────────────────────────────────────────────────────
+
+async function setStatus(id, status) {
+  try {
+    const ref = db.ref('taxis/' + id);
+    const snapshot = await ref.once('value');
+    const taxi = snapshot.val();
+    if (!taxi) return;
+
+    if (status === 'departed') {
+      const updates = {};
+      updates['history/' + id] = {
+        ...taxi,
+        status: 'departed',
+        departedAt: firebase.database.ServerValue.TIMESTAMP,
+        statusUpdatedBy: firebase.auth().currentUser.uid
+      };
+      updates['taxis/' + id] = null;
+
+      for (const [waitId, passenger] of Object.entries(allWaiting)) {
+        if (passenger?.assignedTaxiId === id) {
+          updates['waitingPassengers/' + waitId] = null;
+          if (passenger.passengerId) {
+            const index = await db.ref('passengerWaiting/' + passenger.passengerId).once('value');
+            if (index.val() === waitId) updates['passengerWaiting/' + passenger.passengerId] = null;
+          }
+        }
+      }
+      await db.ref().update(updates);
+      return;
+    }
+
+    const updates = {};
+    updates['taxis/' + id + '/status'] = status;
+    updates['taxis/' + id + '/lastUpdated'] = firebase.database.ServerValue.TIMESTAMP;
+    updates['taxis/' + id + '/statusUpdatedBy'] = firebase.auth().currentUser.uid;
+    if (status === 'breakdown') {
+      for (const [waitId, passenger] of Object.entries(allWaiting)) {
+        if (passenger?.assignedTaxiId === id) {
+          updates['waitingPassengers/' + waitId + '/status'] = 'waiting';
+          updates['waitingPassengers/' + waitId + '/assignedTaxiId'] = null;
+          updates['waitingPassengers/' + waitId + '/assignedAt'] = null;
+        }
+      }
+    }
+    await db.ref().update(updates);
+  } catch (error) {
+    console.error('setStatus failed:', error);
+    alert(error?.message || 'Could not update taxi status.');
+  }
+}
+
+async function removeTaxi(id) {
+  if (!confirm('Remove this taxi from the live board?')) return;
+  try {
+    const ref = db.ref('taxis/' + id);
+    const snapshot = await ref.once('value');
+    if (!snapshot.exists()) return;
+    const updates = {};
+    updates['taxis/' + id] = null;
+    for (const [waitId, passenger] of Object.entries(allWaiting)) {
+      if (passenger?.assignedTaxiId === id) {
+        updates['waitingPassengers/' + waitId + '/status'] = 'waiting';
+        updates['waitingPassengers/' + waitId + '/assignedTaxiId'] = null;
+        updates['waitingPassengers/' + waitId + '/assignedAt'] = null;
+      }
+    }
+    await db.ref().update(updates);
+  } catch (error) {
+    console.error('removeTaxi failed:', error);
+    alert(error?.message || 'Could not remove taxi.');
+  }
+}
+
+async function assignTaxi(waitId) {
+  try {
+    const passengerRef = db.ref('waitingPassengers/' + waitId);
+    const passengerSnap = await passengerRef.once('value');
+    const passenger = passengerSnap.val();
+    if (!passenger || passenger.status !== 'waiting') {
+      throw new Error('This waiting request is no longer available.');
+    }
+    const select = document.getElementById('assign-' + waitId);
+    const taxiId = select?.value;
+    if (!taxiId) throw new Error('Choose an available taxi first.');
+
+    const taxiSnap = await db.ref('taxis/' + taxiId).once('value');
+    const taxi = taxiSnap.val();
+    const assignedSeats = Object.values(allWaiting)
+      .filter(item => item.assignedTaxiId === taxiId && item.status === 'assigned')
+      .reduce((total, item) => total + Number(item.groupSize || 1), 0);
+    const freeSeats = taxi
+      ? Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0) - assignedSeats
+      : 0;
+    if (!taxi || taxi.route !== passenger.route || taxi.status === 'breakdown' ||
+        freeSeats < Number(passenger.groupSize || 1)) {
+      throw new Error('That taxi does not have enough unreserved seats. Refresh and choose another.');
+    }
+
+    await passengerRef.update({
+      status: 'assigned',
+      assignedTaxiId: taxiId,
+      assignedAt: firebase.database.ServerValue.TIMESTAMP
+    });
+  } catch (error) {
+    console.error('Taxi assignment failed:', error);
+    alert(error?.message || 'Could not assign this taxi.');
+  }
+}
+
+async function requeueAssignment(id) {
+  try {
+    const ref = db.ref('waitingPassengers/' + id);
+    const snapshot = await ref.once('value');
+    const passenger = snapshot.val();
+    if (!passenger || passenger.status !== 'assigned') return;
+    await ref.update({ status: 'waiting', assignedTaxiId: null, assignedAt: null });
+  } catch (error) {
+    console.error('Requeue assignment failed:', error);
+    alert(error?.message || 'Could not return this group to the waiting queue.');
+  }
+}
+
+async function dismiss(id) {
+  try {
+    const ref = db.ref('waitingPassengers/' + id);
+    const snapshot = await ref.once('value');
+    const passenger = snapshot.val();
+    if (!passenger) return;
+    const updates = {};
+    updates['waitingPassengers/' + id] = null;
+    if (passenger.passengerId) {
+      const index = await db.ref('passengerWaiting/' + passenger.passengerId).once('value');
+      if (index.val() === id) updates['passengerWaiting/' + passenger.passengerId] = null;
+    }
+    await db.ref().update(updates);
+  } catch (error) {
+    console.error('dismiss failed:', error);
+    alert(error?.message || 'Could not dismiss waiting signal.');
+  }
+}
+
+async function cleanupStale() {
+  try {
+    const now = Date.now();
+    const updates = {};
+    const waitingCutoff = now - 4 * 60 * 60 * 1000;
+    const taxiCutoff = now - 45 * 60 * 1000;
+
+    for (const [id, passenger] of Object.entries(allWaiting)) {
+      if (Number(passenger?.timestamp || 0) < waitingCutoff) {
+        updates['waitingPassengers/' + id] = null;
+        if (passenger.passengerId) {
+          const index = await db.ref('passengerWaiting/' + passenger.passengerId).once('value');
+          if (index.val() === id) updates['passengerWaiting/' + passenger.passengerId] = null;
+        }
+      }
+    }
+
+    for (const [id, taxi] of Object.entries(allTaxis)) {
+      if (Number(taxi?.lastUpdated || 0) < taxiCutoff) {
+        updates['taxis/' + id] = null;
+      }
+    }
+
+    if (Object.keys(updates).length) await db.ref().update(updates);
+    alert('Cleanup complete. ' + Object.keys(updates).filter(path => path.startsWith('waitingPassengers/')).length + ' waiting records and stale taxi records were processed.');
+  } catch (error) {
+    console.error('cleanup failed:', error);
+    alert(error?.message || 'Could not clean stale records.');
+  }
+}
+
+// ── Notifications (replaces FCM on Spark) ─────────────────────────
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}
+
+async function notifyRoute(route) {
+  const waiting = Object.values(allWaiting).filter(item => item.route === route);
+  const count = Math.min(200, waiting.reduce((sum, item) => sum + Number(item.groupSize || 1), 0));
+  if (!count) {
+    alert('No waiting passengers for this route.');
+    return;
+  }
+
+  try {
+    await db.ref('summons/' + route).set({
+      count,
+      timestamp: firebase.database.ServerValue.TIMESTAMP,
+      conductorId: firebase.auth().currentUser.uid
+    });
+    alert('Drivers summoned for ' + routeLabel(route) + ' — ' + count + ' passenger(s).');
+  } catch (error) {
+    console.error('Summon failed:', error);
+    alert(error?.message || 'Could not summon drivers.');
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+function switchTab(n) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['overview','taxis','waiting','manage'][i] === n));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${n}`).classList.add('active');
+}
+</script>
+</body>
+</html>

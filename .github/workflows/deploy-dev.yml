@@ -1,0 +1,91 @@
+name: Deploy TaxiConnect development
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taxiconnect-dev-deploy
+  cancel-in-progress: false
+
+jobs:
+  validate-and-deploy:
+    name: Validate and deploy to TaxiConnect-Dev only
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: taxiconnect-dev
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install Firebase Admin tooling dependencies
+        run: npm ci
+        working-directory: functions
+
+      - name: Validate application and configuration
+        run: node scripts/validate.js
+
+      - name: Check provisioning script syntax
+        run: npm run check
+        working-directory: functions
+
+      - name: Check deploy script syntax
+        run: bash -n scripts/deploy.sh
+
+      - name: Run application smoke tests
+        run: node --test tests/*.test.js
+
+      - name: Install Realtime Database rules test SDKs
+        run: npm install --no-save --no-package-lock @firebase/rules-unit-testing firebase
+        working-directory: functions
+
+      - name: Test Realtime Database rules in emulator
+        run: npx --yes firebase-tools@latest emulators:exec --project taxiconnect-dev --only database "node scripts/test-database-rules.js"
+
+      - name: Verify development-only Firebase credentials
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TAXICONNECT_DEV }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$FIREBASE_SERVICE_ACCOUNT" ]]; then
+            echo "::error::Add FIREBASE_SERVICE_ACCOUNT_TAXICONNECT_DEV in GitHub Actions secrets. Deployment was not attempted."
+            exit 1
+          fi
+          PROJECT_ID="$(printf '%s' "$FIREBASE_SERVICE_ACCOUNT" | jq -r '.project_id // empty')"
+          if [[ "$PROJECT_ID" != "taxiconnect-dev" ]]; then
+            echo "::error::Refusing deployment: service account project must be taxiconnect-dev."
+            exit 1
+          fi
+          echo "Firebase credentials are pinned to taxiconnect-dev."
+
+      - name: Authenticate to TaxiConnect-Dev
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TAXICONNECT_DEV }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Deploy Hosting and Realtime Database rules to TaxiConnect-Dev
+        run: npx --yes firebase-tools@latest deploy --project taxiconnect-dev --only hosting,database --non-interactive
+
+      - name: Publish deployment summary
+        if: success()
+        run: |
+          {
+            echo "## TaxiConnect development deployment"
+            echo "- Project: `taxiconnect-dev`"
+            echo "- Hosting: `https://taxiconnect-dev.web.app`"
+            echo "- Realtime Database rules: deployed"
+            echo "- Cloud Functions: not deployed"
+            echo "- Production: untouched"
+          } >> "$GITHUB_STEP_SUMMARY"
