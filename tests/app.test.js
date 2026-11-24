@@ -66,6 +66,13 @@ test("all role pages load shared helpers and Firebase configuration", () => {
   }
 });
 
+test("all role pages provide navigation back to the landing page", () => {
+  for (const page of ["public/conductor.html", "public/driver.html", "public/passenger.html"]) {
+    const html = read(page);
+    assert.match(html, /<a class="btn-link" href="\/" aria-label="Return to TaxiConnect home">← Home<\/a>/);
+  }
+});
+
 test("passenger assignment and conductor taxi selection are connected", () => {
   const passenger = read("public/passenger.html");
   const conductor = read("public/conductor.html");
