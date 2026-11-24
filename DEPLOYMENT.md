@@ -22,11 +22,11 @@ The repository is configured for Firebase project ID `taxiconnect-dev` in `.fire
 
 ## Automated development deployment
 
-The repository includes `.github/workflows/deploy-dev.yml`. A push to `feat/v1-product-completion` runs the validation suite first, then deploys only Firebase Hosting and Realtime Database rules to the hard-coded project `taxiconnect-dev`. Cloud Functions are not deployed and the workflow cannot target production.
+The repository includes `.github/workflows/deploy-dev.yml`, which is **manual-dispatch only**. It runs the validation suite first, then deploys only Firebase Hosting and Realtime Database rules to the hard-coded project `taxiconnect-dev`. Cloud Functions are not deployed and the workflow cannot target production. No automatic push deployment is configured.
 
 Before the first deployment, add the repository Actions secret `FIREBASE_SERVICE_ACCOUNT_TAXICONNECT_DEV` containing a service-account JSON key whose `project_id` is exactly `taxiconnect-dev`. The workflow validates that project ID before authentication and deployment. Do not commit the JSON key or paste it into chat. If the secret is absent or belongs to another project, the workflow stops before deployment.
 
-After the secret is configured, push a commit to `feat/v1-product-completion`. The workflow validates configuration, runs smoke tests and Realtime Database emulator tests, then publishes Hosting and database rules. Check the Actions run summary before opening https://taxiconnect-dev.web.app/.
+After the secret is configured, open **Actions → Deploy TaxiConnect development → Run workflow**, select `feat/v1-product-completion` if available, and run it manually. The workflow validates configuration, runs smoke tests and Realtime Database emulator tests, then publishes Hosting and database rules. Check the Actions run summary before opening https://taxiconnect-dev.web.app/. **GitHub may not allow manual dispatch of a branch-only workflow until it exists on the repository's default branch; do not merge PR #3 solely to unlock this.**
 
 ## Run the test-data seeder from GitHub Actions
 
