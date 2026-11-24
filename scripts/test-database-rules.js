@@ -122,6 +122,7 @@ async function main() {
       expiresAt: Date.now() + 45 * 60 * 1000,
       status: "waiting"
     };
+    await assertSucceeds(set(ref(passengerDb, "passengerWaiting/passenger-1"), "wait-assign"));
     await assertSucceeds(set(ref(passengerDb, "waitingPassengers/wait-assign"), assignableWait));
     await assertSucceeds(update(ref(conductorDb, "waitingPassengers/wait-assign"), {
       status: "assigned",
