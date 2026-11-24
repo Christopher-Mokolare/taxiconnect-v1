@@ -56,6 +56,7 @@ test('a passenger group is assigned to the correct taxi and the driver confirms 
     await assignedGroup.getByRole('button', { name: 'Confirm pickup' }).click();
 
     await expect(assignedGroup).toContainText('PICKED UP');
+    await expect(driver.locator('#liveVal')).toHaveText('10');
     await expect(passenger.locator('#waitStatus')).toContainText('confirmed pickup');
     await expect(waitingCard).toContainText('Driver confirmed pickup');
 
