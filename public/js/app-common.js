@@ -64,9 +64,10 @@
       const route = String(record.route || "UNKNOWN");
       const pickupPoint = String(record.pickupPoint || "Pickup point not specified").trim();
       const key = route + "::" + pickupPoint.toLowerCase();
-      if (!grouped[key]) grouped[key] = { route, pickupPoint, people: 0, requests: 0, ids: [] };
+      if (!grouped[key]) grouped[key] = { route, pickupPoint, people: 0, requests: 0, expiresAt: waitingRequestExpiry(record), ids: [] };
       grouped[key].people += Math.max(1, Number(record.groupSize || 1));
       grouped[key].requests += 1;
+      grouped[key].expiresAt = Math.min(grouped[key].expiresAt, waitingRequestExpiry(record));
       grouped[key].ids.push(id);
     }
     return Object.values(grouped).sort((a, b) => b.people - a.people);
