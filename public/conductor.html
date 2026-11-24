@@ -142,7 +142,7 @@
 if (!window.TAXICONNECT_CONFIGURED) throw new Error('Firebase Web App configuration is incomplete. See the setup warning above.');
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
-let allTaxis = {}, allWaiting = {};
+let allTaxis = {}, allWaiting = {}, allAssignments = {};
 let subscribed = false;
 
 // ── Auth ──────────────────────────────────────────────────────────
@@ -237,6 +237,7 @@ function subscribe() {
   subscribed = true;
   db.ref('taxis').on('value', s => { allTaxis = s.val() || {}; renderAll(); }, error => showErr(error.message));
   db.ref('waitingPassengers').on('value', s => { allWaiting = s.val() || {}; renderAll(); }, error => showErr(error.message));
+  db.ref('taxiAssignments').on('value', s => { allAssignments = s.val() || {}; renderAll(); }, error => showErr(error.message));
 }
 
 function renderAll() {
@@ -294,7 +295,7 @@ function renderWaiting() {
   el.innerHTML = entries.map(([id,w]) => {
     const matchingTaxis = Object.entries(allTaxis).filter(([taxiId,taxi]) => {
       const alreadyAssigned = Object.values(allWaiting)
-        .filter(passenger => passenger.assignedTaxiId === taxiId)
+        .filter(passenger => passenger.status === 'assigned' && passenger.assignedTaxiId === taxiId)
         .reduce((total, passenger) => total + Number(passenger.groupSize || 1), 0);
       const freeSeats = Number(taxi.capacity || 14) -
         Number(taxi.passengersOnboard || 0) - alreadyAssigned;
@@ -306,8 +307,10 @@ function renderWaiting() {
       ? '<div class="meta" style="color:#b45309;font-weight:700">Taxi unavailable — this group needs reassignment</div>' +
         '<button onclick="requeueAssignment(\'' + escapeHtml(id) + '\')" style="margin-top:6px;padding:7px 10px;border:0;border-radius:7px;background:#b45309;color:#fff;font-weight:700;cursor:pointer">Return to waiting queue</button>'
       : w.status === 'assigned'
-        ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Assigned to ' +
-          escapeHtml(assignedTaxi?.driverName || 'taxi') + ' · Group #' + escapeHtml(w.groupCode || id.slice(-6).toUpperCase()) + '</div>'
+        ? (allAssignments[w.assignedTaxiId]?.[id]?.status === 'pickedUp'
+          ? '<div class="meta" style="color:#146c43;font-weight:700">✓ Driver confirmed pickup · Group #' + escapeHtml(w.groupCode || id.slice(-6).toUpperCase()) + '</div>'
+          : '<div class="meta" style="color:#146c43;font-weight:700">✓ Assigned to ' +
+            escapeHtml(assignedTaxi?.driverName || 'taxi') + ' · Group #' + escapeHtml(w.groupCode || id.slice(-6).toUpperCase()) + '</div>')
         : matchingTaxis.length
         ? '<div style="display:flex;gap:8px;align-items:center;margin-top:8px">' +
           '<select id="assign-' + escapeHtml(id) + '" aria-label="Choose taxi for passenger" style="flex:1;min-width:0;padding:8px;border:1px solid #ddd;border-radius:7px">' +
@@ -464,6 +467,7 @@ async function assignTaxi(waitId) {
     updates['taxiAssignments/' + taxiId + '/' + waitId] = {
       waitId,
       passengerId: passenger.passengerId,
+      driverName: taxi.driverName || 'Driver',
       route: passenger.route,
       groupSize: Number(passenger.groupSize || 1),
       groupCode,
@@ -483,6 +487,13 @@ async function requeueAssignment(id) {
     const snapshot = await ref.once('value');
     const passenger = snapshot.val();
     if (!passenger || passenger.status !== 'assigned') return;
+    if (passenger.assignedTaxiId) {
+      const assignment = await db.ref('taxiAssignments/' + passenger.assignedTaxiId + '/' + id).once('value');
+      if (assignment.val()?.status === 'pickedUp') {
+        alert('This group has already been picked up and cannot be returned to the waiting queue.');
+        return;
+      }
+    }
     const updates = {};
     updates['waitingPassengers/' + id] = { ...passenger, status: 'waiting', assignedTaxiId: null, assignedAt: null, groupCode: null };
     if (passenger.assignedTaxiId) updates['taxiAssignments/' + passenger.assignedTaxiId + '/' + id] = null;
