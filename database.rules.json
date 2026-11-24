@@ -75,6 +75,9 @@
         },
         "assignedAt": {
           ".validate": "newData.isNumber()"
+        },
+        "groupCode": {
+          ".validate": "newData.isString() && newData.val().matches(/^[A-Z0-9]{6}$/)"
         }
       }
     },
@@ -122,6 +125,24 @@
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.token.isConductor === true)",
         ".write": "auth != null && auth.token.isConductor === true"
+      }
+    },
+    "taxiAssignments": {
+      ".read": "auth != null && auth.token.isConductor === true",
+      "$taxiId": {
+        ".read": "auth != null && (auth.token.isConductor === true || (auth.token.isDriver === true && root.child('taxis').child($taxiId).child('driverId').val() === auth.uid))",
+        ".write": "auth != null && auth.token.isConductor === true",
+        "$waitId": {
+          ".read": "auth != null && (auth.token.isConductor === true || data.child('passengerId').val() === auth.uid || (auth.token.isDriver === true && root.child('taxis').child($taxiId).child('driverId').val() === auth.uid))",
+          ".write": "auth != null && (auth.token.isConductor === true || (data.exists() && data.child('passengerId').val() === auth.uid && !newData.exists()) || (auth.token.isDriver === true && root.child('taxis').child($taxiId).child('driverId').val() === auth.uid && data.exists() && data.child('status').val() === 'assigned' && newData.exists() && newData.child('status').val() === 'pickedUp' && newData.child('waitId').val() === data.child('waitId').val() && newData.child('passengerId').val() === data.child('passengerId').val() && newData.child('driverName').val() === data.child('driverName').val() && newData.child('route').val() === data.child('route').val() && newData.child('groupSize').val() === data.child('groupSize').val() && newData.child('groupCode').val() === data.child('groupCode').val() && newData.child('assignedAt').val() === data.child('assignedAt').val()))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['waitId','passengerId','driverName','route','groupSize','groupCode','status','assignedAt']) && newData.child('waitId').val() === $waitId && newData.child('passengerId').isString() && newData.child('driverName').isString() && (newData.child('route').val() === 'SUN_CITY' || newData.child('route').val() === 'RUSTENBURG') && newData.child('groupSize').isNumber() && newData.child('groupSize').val() >= 1 && newData.child('groupSize').val() <= 10 && newData.child('groupCode').val().matches(/^[A-Z0-9]{6}$/) && (newData.child('status').val() === 'assigned' || newData.child('status').val() === 'pickedUp') && newData.child('assignedAt').isNumber() && (!newData.child('pickedUpAt').exists() || (newData.child('status').val() === 'pickedUp' && newData.child('pickedUpAt').isNumber())))",
+          "pickedUpAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 5000 && newData.val() >= now - 60000"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
       }
     }
   }
