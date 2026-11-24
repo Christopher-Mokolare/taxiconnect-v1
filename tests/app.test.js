@@ -113,12 +113,27 @@ test("rural operations distinguish taxi status from live connection presence", (
   const helpers = context.window;
   const now = Date.now();
   assert.equal(helpers.hasLiveConnection({ session: { lastSeen: now } }, now), true);
-  assert.equal(helpers.hasLiveConnection({ session: { lastSeen: now - 120000 } }, now), false);
+  assert.equal(helpers.hasLiveConnection({ session: { lastSeen: now - 120000 } }, now), true);
+  assert.equal(helpers.hasLiveConnection({ session: { lastSeen: now - 240000 } }, now), false);
   assert.equal(helpers.isTaxiFresh({ lastUpdated: now }, { session: { lastSeen: now } }, now), true);
-  assert.equal(helpers.isTaxiFresh({ lastUpdated: now - 120000 }, { session: { lastSeen: now } }, now), false);
+  assert.equal(helpers.isTaxiFresh({ lastUpdated: now - 120000 }, { session: { lastSeen: now } }, now), true);
+  assert.equal(helpers.isTaxiFresh({ lastUpdated: now - 240000 }, { session: { lastSeen: now } }, now), false);
   assert.equal(helpers.taxiConnectionLabel({ status: "loading", lastUpdated: now - 120000 }, {}, now), "Connection lost · last confirmed 2 min ago");
   assert.equal(helpers.taxiConnectionLabel({ status: "offline" }, { session: { lastSeen: now } }, now), "Offline");
   assert.equal(helpers.taxiConnectionLabel({ status: "breakdown" }, {}, now), "Breakdown");
+});
+
+test("expired assignments do not reserve taxi seats", () => {
+  const context = { window: {}, Date };
+  vm.runInNewContext(read("public/js/app-common.js"), context);
+  const now = Date.now();
+  const seats = context.window.assignedSeatsForTaxi({
+    active: { status: "assigned", assignedTaxiId: "taxi-1", groupSize: 3, timestamp: now, expiresAt: now + 60000 },
+    expired: { status: "assigned", assignedTaxiId: "taxi-1", groupSize: 4, timestamp: now - 3600000, expiresAt: now - 900000 },
+    waiting: { status: "waiting", assignedTaxiId: "taxi-1", groupSize: 5, timestamp: now, expiresAt: now + 60000 },
+    otherTaxi: { status: "assigned", assignedTaxiId: "taxi-2", groupSize: 6, timestamp: now, expiresAt: now + 60000 }
+  }, "taxi-1", now);
+  assert.equal(seats, 3);
 });
 
 test("rural passenger demand is grouped by pickup point and expires", () => {
