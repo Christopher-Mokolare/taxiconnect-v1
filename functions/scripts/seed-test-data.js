@@ -38,6 +38,7 @@ async function ensureStaffAccount(item) {
     user = await admin.auth().updateUser(user.uid, {
       password,
       displayName: item.name,
+      emailVerified: true,
       disabled: false
     });
   } catch (error) {
