@@ -108,7 +108,7 @@ if (!window.TAXICONNECT_CONFIGURED) throw new Error('Firebase Web App configurat
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 let selectedRoute = 'SUN_CITY', groupSize = 1;
-let myWaitId = null, myWaitRef = null, myAssignedTaxiRef = null, myAssignmentRef = null, allTaxis = {};
+let myWaitId = null, myWaitRef = null, myAssignedTaxiRef = null, myAssignmentRef = null, myCurrentAssignment = null, myAssignedTaxiUnavailable = false, allTaxis = {};
 
 // ── Auth ──────────────────────────────────────────────────────────
 let taxisSubscribed = false;
@@ -274,13 +274,37 @@ async function cancelWaiting() {
   }
 }
 
-async function renderWaitStatus(record) {
+function updateAssignedMessage(assignment, record) {
+  const el = document.getElementById('waitStatus');
+  if (myAssignedTaxiUnavailable) {
+    el.textContent = '⚠️ Your assigned taxi is unavailable. The conductor can return your group to the waiting queue.';
+    return;
+  }
+  if (!assignment) {
+    el.textContent = 'Your group has been assigned. Keep this page open and wait for the driver update.';
+    return;
+  }
+  const groupCode = assignment.groupCode || record.groupCode || myWaitId.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase();
+  const groupLabel = 'Group #' + groupCode;
+  if (assignment.status === 'pickedUp') {
+    el.textContent = '✓ ' + groupLabel + ' · ' + Number(assignment.groupSize || record.groupSize || 1) +
+      ' passenger(s). ' + (assignment.driverName || 'Your driver') + ' confirmed pickup.';
+    return;
+  }
+  el.textContent = '🚕 ' + groupLabel + ' · ' + Number(assignment.groupSize || record.groupSize || 1) +
+    ' passenger(s) assigned to ' + (assignment.driverName || 'your taxi') + ' on ' +
+    routeLabel(assignment.route || record.route) + '. Show this group code to the driver: ' + groupCode + '.';
+}
+
+function renderWaitStatus(record) {
   const el = document.getElementById('waitStatus');
   if (!record) {
     if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
     if (myAssignmentRef) myAssignmentRef.off('value');
     myAssignedTaxiRef = null;
     myAssignmentRef = null;
+    myCurrentAssignment = null;
+    myAssignedTaxiUnavailable = false;
     el.style.display = 'none';
     el.textContent = '';
     return;
@@ -288,29 +312,29 @@ async function renderWaitStatus(record) {
 
   el.style.display = 'block';
   if (record.status === 'assigned' && record.assignedTaxiId) {
+    const taxiPath = 'taxis/' + record.assignedTaxiId;
     const assignmentPath = 'taxiAssignments/' + record.assignedTaxiId + '/' + myWaitId;
     if (!myAssignmentRef || myAssignmentRef.toString() !== db.ref(assignmentPath).toString()) {
       if (myAssignmentRef) myAssignmentRef.off('value');
       myAssignmentRef = db.ref(assignmentPath);
       myAssignmentRef.on('value', snapshot => {
-        const assignment = snapshot.val();
-        if (!assignment) {
-          el.textContent = 'Your group has been assigned. Keep this page open and wait for the driver update.';
-          return;
-        }
-        const groupLabel = 'Group #' + (assignment.groupCode || record.groupCode || myWaitId.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase());
-        if (assignment.status === 'pickedUp') {
-          el.textContent = '✓ ' + groupLabel + ' · ' + Number(assignment.groupSize || record.groupSize || 1) +
-            ' passenger(s). ' + (assignment.driverName || 'Your driver') + ' confirmed pickup.';
-          return;
-        }
-        el.textContent = '🚕 ' + groupLabel + ' · ' + Number(assignment.groupSize || record.groupSize || 1) +
-          ' passenger(s) assigned to ' + (assignment.driverName || 'your taxi') + ' on ' +
-          routeLabel(assignment.route || record.route) + '. Show this group code to the driver: ' +
-          (assignment.groupCode || record.groupCode || myWaitId.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase()) + '.';
+        myCurrentAssignment = snapshot.val();
+        updateAssignedMessage(myCurrentAssignment, record);
       }, error => {
         console.error('Could not watch pickup confirmation:', error);
         el.textContent = 'A taxi has been assigned. Keep this page open for pickup updates.';
+      });
+    }
+    if (!myAssignedTaxiRef || myAssignedTaxiRef.toString() !== db.ref(taxiPath).toString()) {
+      if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
+      myAssignedTaxiRef = db.ref(taxiPath);
+      myAssignedTaxiRef.on('value', snapshot => {
+        const taxi = snapshot.val();
+        myAssignedTaxiUnavailable = !taxi || taxi.status === 'offline' || taxi.status === 'breakdown';
+        updateAssignedMessage(myCurrentAssignment, record);
+      }, error => {
+        console.error('Could not watch assigned taxi availability:', error);
+        myAssignedTaxiUnavailable = false;
       });
     }
     return;
@@ -320,6 +344,8 @@ async function renderWaitStatus(record) {
   myAssignmentRef = null;
   if (myAssignedTaxiRef) myAssignedTaxiRef.off('value');
   myAssignedTaxiRef = null;
+  myCurrentAssignment = null;
+  myAssignedTaxiUnavailable = false;
   el.textContent = '📢 Your waiting signal is active. The conductor can see your request.';
 }
 
