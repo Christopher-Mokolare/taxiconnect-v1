@@ -92,6 +92,8 @@
   <div class="card">
     <h3>Signal You're Waiting</h3>
     <p style="font-size:12px;color:#666">No taxi? Alert the conductor — they'll send a driver.</p>
+    <label for="pickupPointInput" style="display:block;font-size:12px;color:#666;margin-top:12px">Your pickup point</label>
+    <input id="pickupPointInput" type="text" maxlength="80" autocomplete="off" placeholder="e.g. village shop or main road stop" style="width:100%;padding:11px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:6px" />
     <div class="counter-wrap">
       <button class="cbtn minus" onclick="adjGroup(-1)">−</button>
       <span class="cval" id="groupVal">1</span>
@@ -109,7 +111,7 @@ if (!window.TAXICONNECT_CONFIGURED) throw new Error('Firebase Web App configurat
 firebase.initializeApp(FIREBASE_CONFIG);
 const db = firebase.database();
 let selectedRoute = 'SUN_CITY', groupSize = 1;
-let myWaitId = null, myWaitRef = null, myAssignedTaxiRef = null, allTaxis = {};
+let myWaitId = null, myWaitRef = null, myAssignedTaxiRef = null, allTaxis = {}, allConnections = {};
 
 // ── Auth ──────────────────────────────────────────────────────────
 let taxisSubscribed = false;
@@ -133,6 +135,14 @@ firebase.auth().onAuthStateChanged(async user => {
     }, error => {
       console.error('Taxi subscription failed:', error);
       document.getElementById('taxiList').textContent = 'Could not load taxis. Please try again.';
+    });
+    db.ref('taxiConnections').on('value', snapshot => {
+      allConnections = snapshot.val() || {};
+      renderTaxis();
+    }, error => {
+      console.error('Taxi connection subscription failed:', error);
+      allConnections = {};
+      renderTaxis();
     });
   }
 
@@ -167,6 +177,7 @@ async function signOut() {
   await firebase.auth().signOut();
   taxisSubscribed = false;
   db.ref('taxis').off('value');
+  db.ref('taxiConnections').off('value');
   show('authScreen');
 }
 
@@ -175,20 +186,31 @@ function showErr(m) { const e = document.getElementById('authError'); if(e){ e.t
 // ── Taxis ─────────────────────────────────────────────────────────
 function renderTaxis() {
   const el = document.getElementById('taxiList');
-  const taxis = Object.entries(allTaxis).filter(([,t]) => t.route === selectedRoute && t.status !== 'breakdown' && t.status !== 'offline');
+  const taxis = Object.entries(allTaxis).filter(([, taxi]) => taxi.route === selectedRoute);
   if (!taxis.length) {
-    el.innerHTML = `<div class="alert a-danger">🔴 No taxis to <strong>${routeLabel(selectedRoute)}</strong> right now.<br><small>Use the button below to alert the conductor.</small></div>`;
+    el.innerHTML = `<div class="alert a-danger">No taxi updates for <strong>${routeLabel(selectedRoute)}</strong> yet.<br><small>You can register your waiting demand below.</small></div>`;
     return;
   }
-  el.innerHTML = taxis.map(([,t]) => {
-    const needed = (t.capacity||14) - (t.passengersOnboard||0);
-    const badge = needed <= 0 ? `<span class="badge b-red">FULL</span>`
-      : needed <= 3 ? `<span class="badge b-orange">🔥 ${needed} seat${needed===1?'':'s'} left</span>`
-      : `<span class="badge b-green">🪑 ${needed} seats free</span>`;
-    const status = needed <= 0 ? 'Leaving soon' : needed <= 3 ? 'Almost full — hurry!' : '🟢 Loading passengers';
+  el.innerHTML = taxis.map(([taxiId, taxi]) => {
+    const sessions = allConnections[taxiId] || {};
+    const connected = hasLiveConnection(sessions);
+    const connectionLabel = taxiConnectionLabel(taxi, sessions);
+    const seats = Math.max(0, Number(taxi.capacity || 14) - Number(taxi.passengersOnboard || 0));
+    let badge;
+    if (taxi.status === 'offline') badge = '<span class="badge b-red">OFFLINE</span>';
+    else if (taxi.status === 'breakdown') badge = '<span class="badge b-red">BREAKDOWN</span>';
+    else if (!connected) badge = '<span class="badge b-orange">UNVERIFIED</span>';
+    else if (taxi.status === 'full' || seats === 0) badge = '<span class="badge b-red">FULL</span>';
+    else badge = `<span class="badge b-green">${seats} seats free</span>`;
+    const operational = taxi.status === 'offline' ? 'Driver has marked this taxi offline'
+      : taxi.status === 'breakdown' ? 'Vehicle reported a breakdown'
+      : !connected ? connectionLabel
+      : taxi.status === 'full' ? 'Full — awaiting departure'
+      : 'Loading passengers';
     return `<div class="taxi-row">
-      <div class="row-header"><strong style="font-size:14px">${escapeHtml(t.driverName || 'Driver')}</strong>${badge}</div>
-      <div class="meta">${status} · ${t.passengersOnboard||0}/${t.capacity||14} onboard</div>
+      <div class="row-header"><strong style="font-size:14px">${escapeHtml(taxi.driverName || 'Driver')}</strong>${badge}</div>
+      <div class="meta">${operational} · ${Number(taxi.passengersOnboard || 0)}/${Number(taxi.capacity || 14)} onboard</div>
+      <div class="meta">Last confirmed: ${timeAgo(taxi.lastUpdated)}</div>
     </div>`;
   }).join('');
 }
@@ -215,14 +237,33 @@ async function sendSignal() {
   }
 
   try {
+    const pickupPoint = String(document.getElementById('pickupPointInput').value || '').trim().replace(/\\s+/g, ' ');
+    if (pickupPoint.length < 2 || pickupPoint.length > 80) {
+      throw new Error('Enter a pickup point between 2 and 80 characters.');
+    }
+    const indexRef = db.ref('passengerWaiting/' + user.uid);
+    const existingIndex = await indexRef.once('value');
+    if (existingIndex.val()) {
+      const existingWait = await db.ref('waitingPassengers/' + existingIndex.val()).once('value');
+      const existingRecord = existingWait.val();
+      if (existingRecord && (existingRecord.status === 'assigned' || isWaitingRequestActive(existingRecord))) {
+        myWaitId = existingIndex.val();
+        syncWaitControls();
+        watchMyWaitingSignal();
+        throw new Error('You already have an active waiting request. Cancel it before creating another.');
+      }
+      await indexRef.remove();
+    }
     const waitRef = db.ref('waitingPassengers').push();
     myWaitId = waitRef.key;
     const updates = {};
     updates['waitingPassengers/' + myWaitId] = {
       route: selectedRoute,
+      pickupPoint,
       groupSize,
       passengerId: user.uid,
       timestamp: firebase.database.ServerValue.TIMESTAMP,
+      expiresAt: Date.now() + 45 * 60 * 1000,
       status: 'waiting'
     };
     updates['passengerWaiting/' + user.uid] = myWaitId;
@@ -321,7 +362,7 @@ function watchMyWaitingSignal() {
   myWaitRef = db.ref('waitingPassengers/' + watchedId);
   myWaitRef.on('value', async snapshot => {
     const record = snapshot.val();
-    if (!record || record.passengerId !== user.uid) {
+    if (!record || record.passengerId !== user.uid || (record.status === 'waiting' && !isWaitingRequestActive(record))) {
       if (myWaitId === watchedId) myWaitId = null;
       syncWaitControls();
       renderWaitStatus(null);
