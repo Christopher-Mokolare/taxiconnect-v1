@@ -39,10 +39,15 @@
     });
   }
 
+  function isTaxiFresh(taxi, sessions, now = Date.now(), staleMs = 90000) {
+    const lastUpdated = Number(taxi?.lastUpdated || 0);
+    return hasLiveConnection(sessions, now, staleMs) && lastUpdated > 0 && now - lastUpdated <= staleMs;
+  }
+
   function taxiConnectionLabel(taxi, sessions, now = Date.now()) {
     if (taxi?.status === "offline") return "Offline";
     if (taxi?.status === "breakdown") return "Breakdown";
-    if (hasLiveConnection(sessions, now)) return "Connected";
+    if (isTaxiFresh(taxi, sessions, now)) return "Connected";
     return "Connection lost · last confirmed " + timeAgo(taxi?.lastUpdated);
   }
 
@@ -78,6 +83,7 @@
   window.timeAgo = timeAgo;
   window.escapeHtml = escapeHtml;
   window.hasLiveConnection = hasLiveConnection;
+  window.isTaxiFresh = isTaxiFresh;
   window.taxiConnectionLabel = taxiConnectionLabel;
   window.waitingRequestExpiry = waitingRequestExpiry;
   window.isWaitingRequestActive = isWaitingRequestActive;
