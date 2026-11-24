@@ -114,6 +114,8 @@ test("rural operations distinguish taxi status from live connection presence", (
   const now = Date.now();
   assert.equal(helpers.hasLiveConnection({ session: { lastSeen: now } }, now), true);
   assert.equal(helpers.hasLiveConnection({ session: { lastSeen: now - 120000 } }, now), false);
+  assert.equal(helpers.isTaxiFresh({ lastUpdated: now }, { session: { lastSeen: now } }, now), true);
+  assert.equal(helpers.isTaxiFresh({ lastUpdated: now - 120000 }, { session: { lastSeen: now } }, now), false);
   assert.equal(helpers.taxiConnectionLabel({ status: "loading", lastUpdated: now - 120000 }, {}, now), "Connection lost · last confirmed 2 min ago");
   assert.equal(helpers.taxiConnectionLabel({ status: "offline" }, { session: { lastSeen: now } }, now), "Offline");
   assert.equal(helpers.taxiConnectionLabel({ status: "breakdown" }, {}, now), "Breakdown");
