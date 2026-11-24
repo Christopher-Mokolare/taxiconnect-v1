@@ -86,7 +86,25 @@ async function main() {
     }
   };
 
-  await admin.database().ref("taxis").update(taxis);
+  const database = admin.database();
+  const waitingSnapshot = await database.ref("waitingPassengers").once("value");
+  const cleanup = {};
+  for (const [waitId, passenger] of Object.entries(waitingSnapshot.val() || {})) {
+    if (passenger && Object.prototype.hasOwnProperty.call(taxis, passenger.assignedTaxiId)) {
+      cleanup["waitingPassengers/" + waitId] = {
+        ...passenger,
+        status: "waiting",
+        assignedTaxiId: null,
+        assignedAt: null,
+        groupCode: null
+      };
+    }
+  }
+  for (const taxiId of Object.keys(taxis)) {
+    cleanup["taxiAssignments/" + taxiId] = null;
+  }
+  if (Object.keys(cleanup).length) await database.ref().update(cleanup);
+  await database.ref("taxis").update(taxis);
   console.log("TaxiConnect test accounts and sample taxis are ready in " + PROJECT_ID + ".");
   console.log("Accounts:");
   for (const account of accounts) console.log("- " + account.email + " (" + account.role + ")");
