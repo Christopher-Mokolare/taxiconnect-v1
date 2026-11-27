@@ -238,18 +238,42 @@ async function sendSignal() {
   }
 
   try {
+    // Claim the passenger index first. Realtime Database rules evaluate the
+    // waitingPassengers write against the already-committed index, so a
+    // multi-location update of both paths is rejected.
     const waitRef = db.ref('waitingPassengers').push();
+    const indexRef = db.ref('passengerWaiting/' + user.uid);
+    const claim = await indexRef.transaction(current => current === null ? waitRef.key : undefined);
+    if (!claim.committed) {
+      const existingId = claim.snapshot.val();
+      if (existingId) {
+        const existing = (await db.ref('waitingPassengers/' + existingId).once('value')).val();
+        if (existing && existing.passengerId === user.uid &&
+            (existing.status === 'waiting' || existing.status === 'assigned')) {
+          myWaitId = existingId;
+          syncWaitControls();
+          watchMyWaitingSignal();
+          return;
+        }
+      }
+      throw new Error('Another waiting request is already being registered. Please try again.');
+    }
+
     myWaitId = waitRef.key;
-    const updates = {};
-    updates['waitingPassengers/' + myWaitId] = {
-      route: selectedRoute,
-      groupSize,
-      passengerId: user.uid,
-      timestamp: firebase.database.ServerValue.TIMESTAMP,
-      status: 'waiting'
-    };
-    updates['passengerWaiting/' + user.uid] = myWaitId;
-    await db.ref().update(updates);
+    try {
+      await waitRef.set({
+        route: selectedRoute,
+        groupSize,
+        passengerId: user.uid,
+        timestamp: firebase.database.ServerValue.TIMESTAMP,
+        status: 'waiting'
+      });
+    } catch (writeError) {
+      const latest = await indexRef.once('value');
+      if (latest.val() === waitRef.key) await indexRef.remove();
+      myWaitId = null;
+      throw writeError;
+    }
     document.getElementById('waitBtn').style.display = 'none';
     const status = document.getElementById('waitStatus');
     status.style.display = 'block';
