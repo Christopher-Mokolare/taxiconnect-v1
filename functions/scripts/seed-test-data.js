@@ -119,10 +119,8 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
-    // Close Admin SDK connections so CI does not wait on an open RTDB socket.
-    try {
-      await admin.app().delete();
-    } catch (error) {
-      console.error("Could not close Firebase Admin app cleanly:", error.message);
+    // Close every Admin SDK app so CI does not wait on an open RTDB socket.
+    if (admin.apps.length) {
+      await Promise.all(admin.apps.map(app => app.delete()));
     }
   });
