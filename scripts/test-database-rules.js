@@ -72,9 +72,16 @@ async function main() {
       groupSize: 2,
       passengerId: "passenger-1",
       timestamp: Date.now(),
+      pickupPoint: "Mabeskraal village shop",
+      expiresAt: Date.now() + 45 * 60 * 1000,
       status: "waiting"
     };
+    await assertSucceeds(set(ref(passengerDb, "passengerWaiting/passenger-1"), "wait-1"));
     await assertSucceeds(set(ref(passengerDb, "waitingPassengers/wait-1"), ownWait));
+    await assertFails(set(ref(passengerDb, "waitingPassengers/wait-duplicate"), {
+      ...ownWait,
+      pickupPoint: "Another stop"
+    }));
     await assertSucceeds(get(ref(passengerDb, "waitingPassengers/wait-1")));
     await assertFails(get(ref(passengerDb, "waitingPassengers/otherWait")));
     await assertFails(get(ref(passengerDb, "waitingPassengers")));
@@ -82,9 +89,9 @@ async function main() {
       ...ownWait,
       passengerId: "passenger-2"
     }));
-    await assertSucceeds(set(ref(passengerDb, "passengerWaiting/passenger-1"), "wait-1"));
     await assertFails(set(ref(passengerDb, "passengerWaiting/passenger-2"), "wait-1"));
     await assertSucceeds(remove(ref(passengerDb, "waitingPassengers/wait-1")));
+    await assertSucceeds(remove(ref(passengerDb, "passengerWaiting/passenger-1")));
 
     const ownTaxi = {
       driverId: "driver-1",
@@ -96,19 +103,31 @@ async function main() {
       lastUpdated: Date.now()
     };
     await assertSucceeds(set(ref(driverDb, "taxis/taxi-1"), ownTaxi));
+    await assertSucceeds(get(ref(passengerDb, "taxis")));
+    await assertSucceeds(get(ref(conductorDb, "taxis")));
+    const connectionSession = { connectedAt: Date.now(), lastSeen: Date.now() };
+    await assertSucceeds(set(ref(driverDb, "taxiConnections/taxi-1/session-1"), connectionSession));
+    await assertSucceeds(get(ref(passengerDb, "taxiConnections/taxi-1")));
+    await assertSucceeds(get(ref(conductorDb, "taxiConnections/taxi-1")));
+    await assertFails(set(ref(otherDriverDb, "taxiConnections/taxi-1/session-evil"), connectionSession));
+    await assertSucceeds(remove(ref(conductorDb, "taxiConnections/taxi-1/session-1")));
+    await assertSucceeds(set(ref(driverDb, "taxiConnections/taxi-1/session-1"), connectionSession));
+    await assertSucceeds(remove(ref(driverDb, "taxiConnections/taxi-1/session-1")));
     const assignableWait = {
       route: "RUSTENBURG",
       groupSize: 2,
       passengerId: "passenger-1",
       timestamp: Date.now(),
+      pickupPoint: "Mabeskraal main road",
+      expiresAt: Date.now() + 45 * 60 * 1000,
       status: "waiting"
     };
+    await assertSucceeds(set(ref(passengerDb, "passengerWaiting/passenger-1"), "wait-assign"));
     await assertSucceeds(set(ref(passengerDb, "waitingPassengers/wait-assign"), assignableWait));
     await assertSucceeds(update(ref(conductorDb, "waitingPassengers/wait-assign"), {
       status: "assigned",
       assignedTaxiId: "taxi-1",
-      assignedAt: Date.now(),
-      groupCode: "ABC123"
+      assignedAt: Date.now()
     }));
     await assertSucceeds(get(ref(passengerDb, "waitingPassengers/wait-assign")));
     const assignment = {
@@ -148,6 +167,54 @@ async function main() {
       assignedTaxiId: "missing-taxi",
       assignedAt: Date.now()
     }));
+
+    // Existing requests remain assignable after the 60-second creation window,
+    // provided their original timestamp is immutable and the 45-minute expiry remains valid.
+    const staleRequestNow = Date.now();
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await set(ref(context.database(), "waitingPassengers/wait-old"), {
+        route: "RUSTENBURG",
+        groupSize: 2,
+        passengerId: "passenger-1",
+        timestamp: staleRequestNow - 2 * 60 * 1000,
+        pickupPoint: "Mabeskraal village shop",
+        expiresAt: staleRequestNow + 20 * 60 * 1000,
+        status: "waiting"
+      });
+      await set(ref(context.database(), "waitingPassengers/wait-expired"), {
+        route: "RUSTENBURG",
+        groupSize: 2,
+        passengerId: "passenger-1",
+        timestamp: staleRequestNow - 2 * 60 * 1000,
+        pickupPoint: "Mabeskraal village shop",
+        expiresAt: staleRequestNow - 1000,
+        status: "waiting"
+      });
+    });
+    await assertSucceeds(update(ref(conductorDb, "waitingPassengers/wait-old"), {
+      status: "assigned",
+      assignedTaxiId: "taxi-1",
+      assignedAt: Date.now()
+    }));
+    await assertFails(update(ref(conductorDb, "waitingPassengers/wait-expired"), {
+      status: "assigned",
+      assignedTaxiId: "taxi-1",
+      assignedAt: Date.now()
+    }));
+    await assertFails(update(ref(conductorDb, "waitingPassengers/wait-old"), {
+      timestamp: Date.now(),
+      assignedTaxiId: "taxi-1",
+      assignedAt: Date.now()
+    }));
+    await assertFails(update(ref(otherPassengerDb, "waitingPassengers/wait-assign"), {
+      status: "assigned",
+      assignedTaxiId: "taxi-1",
+      assignedAt: Date.now()
+    }));
+    await assertFails(update(ref(conductorDb, "waitingPassengers/wait-assign"), {
+      assignedTaxiId: "missing-taxi",
+      assignedAt: Date.now()
+    }));
     await assertFails(set(ref(driverDb, "taxis/taxi-spoof"), {
       ...ownTaxi,
       driverId: "driver-2"
@@ -172,6 +239,23 @@ async function main() {
     }));
     await assertFails(get(ref(passengerDb, "drivers/driver-1")));
     await assertSucceeds(get(ref(driverDb, "drivers/driver-1")));
+
+    await assertSucceeds(set(ref(conductorDb, "routeDemand/mabeskraal-stop"), {
+      route: "RUSTENBURG",
+      pickupPoint: "Mabeskraal village shop",
+      people: 5,
+      requests: 3,
+      expiresAt: Date.now() + 30 * 60 * 1000
+    }));
+    await assertSucceeds(get(ref(driverDb, "routeDemand")));
+    await assertFails(get(ref(passengerDb, "routeDemand")));
+    await assertFails(set(ref(driverDb, "routeDemand/forbidden"), {
+      route: "RUSTENBURG",
+      pickupPoint: "Main road",
+      people: 2,
+      requests: 2,
+      expiresAt: Date.now() + 30 * 60 * 1000
+    }));
 
     await assertSucceeds(get(ref(conductorDb, "waitingPassengers")));
     await assertSucceeds(update(ref(conductorDb, "taxis/taxi-1"), {
